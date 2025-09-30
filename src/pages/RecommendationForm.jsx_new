@@ -60,7 +60,7 @@ export function RecommendationForm() {
             // Aquí podrías procesar la subida de imágenes antes de guardar
             await createRecommendation(data);
             alert('Recomendación guardada localmente con éxito!');
-            navigate('/'); // Volver a la lista
+            navigate('/'); // Volver a la página de consulta
         } catch (error) {
             alert('Hubo un error al guardar la recomendación.');
             console.error(error);
@@ -94,14 +94,11 @@ export function RecommendationForm() {
     }, [clientSearch, handleClientSearch]);
 
     const handleSelectClient = (client) => {
-        // Usamos setValue para rellenar todos los campos del agricultor de forma segura
-        setValue('datosAgricultor.nombre', client.nombre || '');
-        setValue('datosAgricultor.dni', client.dni || '');
-        setValue('datosAgricultor.direccion', client.direccion || '');
-        setValue('datosAgricultor.departamento', client.departamento || '');
-        setValue('datosAgricultor.provincia', client.provincia || '');
-        setValue('datosAgricultor.distrito', client.distrito || '');
-        setValue('datosAgricultor.adelanto', client.adelanto || 0);
+        // Usamos reset para rellenar el formulario, manteniendo los datos del técnico
+        reset({
+            ...control._defaultValues,
+            datosAgricultor: client,
+        });
         // Limpiamos la búsqueda
         setClientSearch('');
         setSearchResults([]);

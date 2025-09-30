@@ -2,37 +2,25 @@ import Dexie from "dexie";
 
 export const db = new Dexie("agrogringoDB");
 
-db.version(1).stores({
+db.version(6).stores({
   // Tabla para las recomendaciones
-  // Se añaden índices para los campos que se usarán en filtros y búsquedas
+  // Restauramos los índices con la sintaxis correcta.
   recommendations: `
     ++localId,
     id,
     noHoja,
     fecha,
-    'datosAgricultor.dni',
-    'datosTecnico.email',
+    dniAgricultor,
     estado,
-    *detallesProductos.producto,
     syncStatus,
     timestampUltimaModificacion
   `,
 
   // Tabla para el catálogo de productos (se sincronizará desde Firebase)
-  products: `
-    ++localId,
-    id,
-    &nombre,                    // Nombre único para búsquedas y autocompletado
-    disponible
-  `,
+  products: "++localId, id, &nombre, disponible",
 
   // Tabla para el catálogo de clientes (se sincronizará desde Firebase)
-  clients: `
-    ++localId,
-    id,
-    &dni,                       // DNI único, clave principal de búsqueda
-    nombre
-  `,
+  clients: "++localId, id, &dni, nombre",
 });
 
 /**

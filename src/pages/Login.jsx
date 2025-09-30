@@ -20,7 +20,7 @@ export function Login() {
             await login(data.email, data.password);
             // La navegación se manejará automáticamente por el cambio de estado en AuthContext
             // pero podemos forzarla si es necesario.
-            navigate('/');
+            navigate('/recommendations/new'); // Redirige a la página de creación
         } catch (err) {
             setError('Credenciales incorrectas. Por favor, inténtalo de nuevo.');
             console.error(err);
