@@ -1,3 +1,4 @@
+//configurando el contexto del proveedor
 import { useContext } from "react";
 import { AuthContext } from "@/context/AuthContext";
 
