@@ -2,9 +2,21 @@ import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { createRecommendation } from '@/services/api/recommendations'; // Asegúrate que la importación sea nombrada
+import { createRecommendation, getLastRecommendation } from '@/services/api/recommendations';
 import { searchClients } from '@/services/api/clients';
+import { getAllProducts } from '@/services/api/products';
+import { SignaturePad } from '@/components/SignaturePad';
+import { ProductAutocomplete } from '@/components/ProductAutocomplete';
 
+// Datos geográficos de Ucayali
+const ucayaliData = {
+    provinces: [
+        { name: 'Coronel Portillo', districts: ['Callería', 'Campoverde', 'Iparía', 'Masisea', 'Yarinacocha', 'Nueva Requena', 'Manantay'] },
+        { name: 'Atalaya', districts: ['Raimondi', 'Sepahua', 'Tahuanía', 'Yurúa'] },
+        { name: 'Padre Abad', districts: ['Padre Abad', 'Irázola', 'Curimaná', 'Alexander von Humboldt', 'Neshuya', 'Huipoca', 'Boqueron'] },
+        { name: 'Purús', districts: ['Purús'] }
+    ]
+};
 
 export function RecommendationForm() {
     const navigate = useNavigate();
@@ -12,12 +24,16 @@ export function RecommendationForm() {
     const [clientSearch, setClientSearch] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [isFetchingNextSheet, setIsFetchingNextSheet] = useState(true);
+    const [productList, setProductList] = useState([]);
+    const [distritos, setDistritos] = useState([]);
 
     const {
         register,
         control,
         handleSubmit,
         setValue,
+        watch,
         reset,
         formState: { errors, isSubmitting },
     } = useForm({
@@ -28,9 +44,9 @@ export function RecommendationForm() {
                 dni: '',
                 direccion: '',
                 adelanto: 0,
-                distrito: '',
+                distrito: '', // Se convertirá en un select
                 provincia: '',
-                departamento: '',
+                departamento: 'Ucayali',
             },
             datosTecnico: {
                 nombre: user?.displayName || 'Nombre del Técnico', // Idealmente vendría del perfil de Firebase
@@ -40,15 +56,25 @@ export function RecommendationForm() {
             },
             diagnostico: '',
             detallesProductos: [{ producto: '', cantidad: 1, formaUso: '' }],
-            recomendaciones: ['', '', '', ''], // Para los 4 puntos de seguridad
+            recomendaciones: [
+                'Almacenar los productos químicos en lugar seguro, alejado del hogar y familia.',
+                'Para preparar y aplicar los plaguicidas, utilizar los implementos de seguridad (EPP).',
+                'Después de utilizar, hacer el triple lavado, hacerle hueco y almacenar en el acopio de la chacra para su disposición final.',
+                '' // El cuarto queda libre
+            ],
             seguimiento: {
                 fotoAntes: null,
                 fotoDespues: null,
                 observaciones: '',
             },
+            firmaAgricultor: null,
+            firmaTecnico: null,
             estado: 'Pendiente',
         },
     });
+
+    // Observamos el valor de la provincia para actualizar los distritos
+    const selectedProvincia = watch('datosAgricultor.provincia');
 
     const { fields, append, remove } = useFieldArray({
         control,
@@ -93,12 +119,58 @@ export function RecommendationForm() {
         return () => clearTimeout(debounceSearch);
     }, [clientSearch, handleClientSearch]);
 
+    // Efecto para obtener el siguiente número de hoja automáticamente
+    useEffect(() => {
+        const getNextSheetNumber = async () => {
+            setIsFetchingNextSheet(true);
+            try {
+                const lastRecommendation = await getLastRecommendation();
+                let nextNumber = 1;
+                if (lastRecommendation) {
+                    // Usamos el número de la última recomendación para calcular el siguiente
+                    const lastNumber = parseInt(lastRecommendation.noHoja, 10);
+                    if (!isNaN(lastNumber)) {
+                        nextNumber = lastNumber + 1;
+                    }
+                }
+                // Formateamos el número a 3 dígitos (e.g., 1 -> "001", 12 -> "012")
+                setValue('noHoja', nextNumber.toString().padStart(3, '0'));
+            } catch (error) {
+                console.error("Error fetching next sheet number:", error);
+                setValue('noHoja', '001'); // Fallback en caso de error
+            } finally {
+                setIsFetchingNextSheet(false);
+            }
+        };
+        getNextSheetNumber();
+    }, [setValue]);
+
+    // Efecto para cargar la lista de productos para el autocompletado
+    useEffect(() => {
+        const fetchProducts = async () => {
+            try {
+                const products = await getAllProducts();
+                setProductList(products);
+            } catch (error) {
+                console.error("Error fetching product list:", error);
+            }
+        };
+        fetchProducts();
+    }, []);
+
+    // Efecto para actualizar los distritos cuando cambia la provincia
+    useEffect(() => {
+        const provinceData = ucayaliData.provinces.find(p => p.name === selectedProvincia);
+        setDistritos(provinceData ? provinceData.districts : []);
+        setValue('datosAgricultor.distrito', ''); // Resetea el distrito al cambiar de provincia
+    }, [selectedProvincia, setValue]);
+
     const handleSelectClient = (client) => {
         // Usamos setValue para rellenar todos los campos del agricultor de forma segura
         setValue('datosAgricultor.nombre', client.nombre || '');
         setValue('datosAgricultor.dni', client.dni || '');
         setValue('datosAgricultor.direccion', client.direccion || '');
-        setValue('datosAgricultor.departamento', client.departamento || '');
+        setValue('datosAgricultor.departamento', client.departamento || 'Ucayali');
         setValue('datosAgricultor.provincia', client.provincia || '');
         setValue('datosAgricultor.distrito', client.distrito || '');
         setValue('datosAgricultor.adelanto', client.adelanto || 0);
@@ -123,12 +195,17 @@ export function RecommendationForm() {
                         <div className="text-right">
                             <div className="font-bold text-lg">📞 992 431 355</div>
                             <div className="bg-white/25 px-3 py-1 rounded-full text-sm font-bold mt-1">
-                                <input
-                                    id="noHoja"
-                                    placeholder="N° 001-..."
-                                    {...register('noHoja', { required: 'El N° de hoja es obligatorio' })}
-                                    className="bg-transparent text-white placeholder-white/70 text-center outline-none w-28"
-                                />
+                                {isFetchingNextSheet ? (
+                                    <span className="text-white/70">Cargando N°...</span>
+                                ) : (
+                                    <input
+                                        id="noHoja"
+                                        placeholder="N° 001"
+                                        {...register('noHoja', { required: 'El N° de hoja es obligatorio' })}
+                                        className="bg-transparent text-white placeholder-white/70 text-center outline-none w-28"
+                                        readOnly
+                                    />
+                                )}
                             </div>
                             {errors.noHoja && <p className="mt-1 text-xs text-yellow-300">{errors.noHoja.message}</p>}
                         </div>
@@ -204,16 +281,31 @@ export function RecommendationForm() {
                                 />
                             </div>
                             <div>
-                                <label htmlFor="agricultorDepartamento" className="block text-sm font-medium text-gray-700">Departamento</label>
-                                <input id="agricultorDepartamento" {...register('datosAgricultor.departamento')} className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500" />
-                            </div>
-                            <div>
                                 <label htmlFor="agricultorProvincia" className="block text-sm font-medium text-gray-700">Provincia</label>
-                                <input id="agricultorProvincia" {...register('datosAgricultor.provincia')} className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500" />
+                                <select
+                                    id="agricultorProvincia"
+                                    {...register('datosAgricultor.provincia')}
+                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                >
+                                    <option value="">-- Seleccione --</option>
+                                    {ucayaliData.provinces.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
+                                </select>
                             </div>
                             <div>
                                 <label htmlFor="agricultorDistrito" className="block text-sm font-medium text-gray-700">Distrito</label>
-                                <input id="agricultorDistrito" {...register('datosAgricultor.distrito')} className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500" />
+                                <select
+                                    id="agricultorDistrito"
+                                    {...register('datosAgricultor.distrito')}
+                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                    disabled={!selectedProvincia || distritos.length === 0}
+                                >
+                                    <option value="">-- Seleccione --</option>
+                                    {distritos.map(d => <option key={d} value={d}>{d}</option>)}
+                                </select>
+                            </div>
+                            <div>
+                                <label htmlFor="agricultorDepartamento" className="block text-sm font-medium text-gray-700">Departamento</label>
+                                <input id="agricultorDepartamento" {...register('datosAgricultor.departamento')} className="w-full p-2 mt-1 bg-gray-200 border-gray-300 rounded-md shadow-sm cursor-not-allowed" readOnly />
                             </div>
                         </div>
                     </section>
@@ -283,11 +375,19 @@ export function RecommendationForm() {
                                 {fields.map((field, index) => (
                                     <tr key={field.id} className="border-b last:border-0">
                                         <td className="p-2">
-                                            <input
-                                                {...register(`detallesProductos.${index}.producto`, { required: true })}
-                                                className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                                placeholder="Nombre del producto"
+                                            {/* Usamos Controller para integrar el componente de autocompletado */}
+                                            <Controller
+                                                name={`detallesProductos.${index}.producto`}
+                                                control={control}
+                                                rules={{ required: 'El producto es obligatorio' }}
+                                                render={({ field }) => (
+                                                    <ProductAutocomplete
+                                                        products={productList}
+                                                        {...field} // Pasa value, onChange, onBlur
+                                                    />
+                                                )}
                                             />
+                                            {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
                                         </td>
                                         <td className="p-2">
                                             <input
@@ -296,6 +396,7 @@ export function RecommendationForm() {
                                                 {...register(`detallesProductos.${index}.cantidad`, { required: true, valueAsNumber: true, min: { value: 0.1, message: 'Debe ser > 0' } })}
                                                 className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
                                             />
+                                            {errors.detallesProductos?.[index]?.cantidad && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>}
                                         </td>
                                         <td className="p-2">
                                             <input
@@ -318,15 +419,27 @@ export function RecommendationForm() {
                     {/* Recomendaciones de Seguridad */}
                     <section className="p-6 bg-green-50 rounded-xl border-2 border-green-200">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">💡 Recomendaciones de Seguridad</h2>
-                        <div className="space-y-2">
-                            {['', '', '', ''].map((_, index) => (
-                                <input
-                                    key={index}
-                                    {...register(`recomendaciones.${index}`)}
+                        <div className="space-y-4">
+                            <ul className="space-y-2 list-disc list-inside text-gray-700">
+                                <li>{watch('recomendaciones.0')}</li>
+                                <li>{watch('recomendaciones.1')}</li>
+                                <li>{watch('recomendaciones.2')}</li>
+                            </ul>
+                            {/* Campos ocultos para que react-hook-form rastree los valores preestablecidos */}
+                            <input type="hidden" {...register('recomendaciones.0')} />
+                            <input type="hidden" {...register('recomendaciones.1')} />
+                            <input type="hidden" {...register('recomendaciones.2')} />
+
+                            <div>
+                                <label htmlFor="custom-recommendation" className="block text-sm font-medium text-gray-700">Otra recomendación (opcional):</label>
+                                <textarea
+                                    id="custom-recommendation"
+                                    {...register('recomendaciones.3')}
+                                    rows="2"
                                     className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                    placeholder={`Recomendación de seguridad ${index + 1}`}
-                                />
-                            ))}
+                                    placeholder="Escriba aquí una recomendación adicional..."
+                                ></textarea>
+                            </div>
                         </div>
                     </section>
 
@@ -338,13 +451,25 @@ export function RecommendationForm() {
                                 <label className="block text-sm font-medium text-gray-700">Adelanto (S/.)</label>
                                 <input type="number" step="0.01" {...register('datosAgricultor.adelanto', { valueAsNumber: true })} className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500" />
                             </div>
-                            {/* Placeholder para las firmas. Reemplazar con un componente de firma. */}
-                            <div className="p-4 text-center border-2 border-dashed rounded-lg bg-white">
-                                <p className="text-sm text-gray-500">Espacio para Firma del Agricultor</p>
-                            </div>
-                            <div className="p-4 text-center border-2 border-dashed rounded-lg bg-white">
-                                <p className="text-sm text-gray-500">Espacio para Firma del Técnico</p>
-                            </div>
+                            {/* Integración del SignaturePad para el Agricultor */}
+                            <Controller
+                                name="firmaAgricultor"
+                                control={control}
+                                render={({ field }) => (
+                                    <SignaturePad
+                                        title="Firma del Agricultor"
+                                        onEnd={field.onChange} // onEnd pasa la data (base64) a react-hook-form
+                                    />
+                                )}
+                            />
+                            {/* Integración del SignaturePad para el Técnico */}
+                            <Controller
+                                name="firmaTecnico"
+                                control={control}
+                                render={({ field }) => (
+                                    <SignaturePad title="Firma del Técnico" onEnd={field.onChange} />
+                                )}
+                            />
                         </div>
                     </section>
 

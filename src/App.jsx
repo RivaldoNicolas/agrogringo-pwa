@@ -5,6 +5,7 @@ import { RecommendationForm } from '@/pages/RecommendationForm';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ConsultationPage } from '@/pages/ConsultationPage';
+import { ProductManagementPage } from '@/pages/ProductManagementPage';
 
 function App() {
   const { user } = useAuth();
@@ -22,6 +23,8 @@ function App() {
           <Route path="/" element={<ConsultationPage />} />
           {/* La página para crear una nueva recomendación */}
           <Route path="/recommendations/new" element={<RecommendationForm />} />
+          {/* Nueva ruta para la gestión de productos */}
+          <Route path="/products" element={<ProductManagementPage />} />
         </Route>
       </Route>
     </Routes>

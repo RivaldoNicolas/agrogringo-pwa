@@ -41,11 +41,18 @@ export const createRecommendation = async (recommendationData) => {
  * @returns {Promise<Array<object>>} Un array con las recomendaciones.
  */
 export const getAllRecommendations = async () => {
-  // Restauramos el ordenamiento ahora que los índices están corregidos.
-  // toArray() es un método de Dexie para obtener todos los registros
-  return await db.recommendations
-    .reverse()
-    .sortBy("timestampUltimaModificacion");
+  // Ordenamos por fecha descendente usando el índice 'fecha'.
+  return await db.recommendations.orderBy("fecha").reverse().toArray();
+};
+
+/**
+ * Obtiene la última recomendación registrada en la base de datos local.
+ * @returns {Promise<object|undefined>} La última recomendación o undefined si no hay ninguna.
+ */
+export const getLastRecommendation = async () => {
+  // .orderBy('fecha').last() es la forma más eficiente de obtener el último registro.
+  // No necesitamos traer toda la colección a memoria.
+  return await db.recommendations.orderBy("fecha").last();
 };
 
 /**

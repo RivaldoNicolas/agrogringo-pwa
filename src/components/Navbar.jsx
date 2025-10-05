@@ -33,6 +33,7 @@ export function Navbar() {
             <nav className="flex items-center gap-4">
                 <Link to="/recommendations/new" className={getLinkClass('/recommendations/new')}>+ Nueva Recomendación</Link>
                 <Link to="/" className={getLinkClass('/')}>Consultar Recomendaciones</Link>
+                <Link to="/products" className={getLinkClass('/products')}>Productos</Link>
             </nav>
             <button onClick={handleLogout} className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700">Cerrar Sesión</button>
         </header>
