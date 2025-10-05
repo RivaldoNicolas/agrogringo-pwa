@@ -39,6 +39,7 @@ export function RecommendationDetailPage() {
     const {
         noHoja,
         fecha,
+        estado, // Añadimos el estado
         datosAgricultor,
         datosTecnico,
         diagnostico,
@@ -48,6 +49,12 @@ export function RecommendationDetailPage() {
         firmaAgricultor,
         firmaTecnico,
     } = recommendation;
+
+    const estadoStyles = {
+        'Pendiente': 'bg-yellow-100 text-yellow-800',
+        'En tratamiento': 'bg-blue-100 text-blue-800',
+        'Finalizado': 'bg-green-100 text-green-800',
+    };
 
     return (
         <div className="max-w-4xl p-4 mx-auto">
@@ -63,10 +70,13 @@ export function RecommendationDetailPage() {
                             </div>
                         </div>
                         <div className="text-right">
-                            <div className="bg-white/25 px-4 py-2 rounded-full text-lg font-bold mt-1">
+                            <div className="bg-white/25 px-4 py-2 rounded-lg text-lg font-bold mt-1">
                                 N° {noHoja}
                             </div>
                             <p className="mt-2 text-sm">Fecha: {new Date(fecha).toLocaleDateString()}</p>
+                            <div className={`mt-2 inline-block px-3 py-1 text-sm font-bold rounded-full ${estadoStyles[estado] || 'bg-gray-100 text-gray-800'}`}>
+                                {estado}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -110,6 +120,34 @@ export function RecommendationDetailPage() {
                                 />
                             </div>
                         )}
+                    </section>
+
+                    {/* Seguimiento Final */}
+                    {estado === 'Finalizado' && (seguimiento?.fotoDespues || seguimiento?.observaciones) && (
+                        <section className="p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+                            <h2 className="text-lg font-bold text-green-800 mb-3">✅ Seguimiento y Resultados</h2>
+                            {seguimiento?.fotoDespues && (
+                                <div className="mt-4">
+                                    <h3 className="font-semibold text-sm mb-2">Foto del Cultivo (Después):</h3>
+                                    <img
+                                        src={seguimiento.fotoDespues}
+                                        alt="Foto del cultivo después del tratamiento"
+                                        className="rounded-lg border max-w-sm mx-auto"
+                                    />
+                                </div>
+                            )}
+                            {seguimiento?.observaciones && (
+                                <div className="mt-4">
+                                    <h3 className="font-semibold text-sm mb-2">Observaciones Finales:</h3>
+                                    <p className="text-sm bg-white p-3 rounded-md border whitespace-pre-wrap">{seguimiento.observaciones}</p>
+                                </div>
+                            )}
+                        </section>
+                    )}
+
+                    {/* Productos Recomendados */}
+                    <section className="p-4 bg-gray-50 rounded-lg border">
+                        <h2 className="text-lg font-bold text-green-800 mb-3">📦 Productos Recomendados</h2>
                     </section>
 
                     {/* Productos Recomendados */}

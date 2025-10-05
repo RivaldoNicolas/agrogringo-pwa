@@ -167,7 +167,9 @@ export function ConsultationPage() {
                                                 <Link to={`/recommendations/${rec.localId}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded flex items-center gap-1">
                                                     👁️ Ver
                                                 </Link>
-                                                <button className="btn-action bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded">📸 Seguir</button>
+                                                <Link to={`/recommendations/${rec.localId}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded flex items-center gap-1">
+                                                    📸 Seguir
+                                                </Link>
                                                 <button className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded">✏️ Edit</button>
                                             </td>
                                         </tr>
