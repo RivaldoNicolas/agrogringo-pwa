@@ -56,6 +56,16 @@ export const getLastRecommendation = async () => {
 };
 
 /**
+ * Obtiene una recomendación específica por su ID local.
+ * @param {number} localId - El ID local del registro en Dexie.
+ * @returns {Promise<object|undefined>} La recomendación o undefined si no se encuentra.
+ */
+export const getRecommendationById = async (localId) => {
+  // Dexie's get() es la forma más eficiente de obtener un registro por su clave primaria.
+  return await db.recommendations.get(localId);
+};
+
+/**
  * Limpia la tabla de recomendaciones.
  */
 export const clearLocalDatabase = async () => {

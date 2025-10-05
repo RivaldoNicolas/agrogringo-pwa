@@ -81,10 +81,29 @@ export function RecommendationForm() {
         name: 'detallesProductos',
     });
 
+    // Helper para convertir un archivo a base64
+    const fileToBase64 = (file) => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = error => reject(error);
+    });
+
     const onSubmit = async (data) => {
         try {
-            // Aquí podrías procesar la subida de imágenes antes de guardar
+            // Procesar la imagen "fotoAntes" si existe
+            if (data.seguimiento.fotoAntes && data.seguimiento.fotoAntes.length > 0) {
+                const file = data.seguimiento.fotoAntes[0];
+                const base64Image = await fileToBase64(file);
+                data.seguimiento.fotoAntes = base64Image;
+            } else {
+                // Si no se seleccionó archivo, asegúrate de que sea null
+                data.seguimiento.fotoAntes = null;
+            }
+
+            // Guardar la recomendación con la imagen ya convertida
             await createRecommendation(data);
+
             alert('Recomendación guardada localmente con éxito!');
             navigate('/'); // Volver a la lista
         } catch (error) {
@@ -458,7 +477,8 @@ export function RecommendationForm() {
                                 render={({ field }) => (
                                     <SignaturePad
                                         title="Firma del Agricultor"
-                                        onEnd={field.onChange} // onEnd pasa la data (base64) a react-hook-form
+                                        // Aseguramos que solo se guarde la URL de la imagen
+                                        onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
                                     />
                                 )}
                             />
@@ -467,7 +487,10 @@ export function RecommendationForm() {
                                 name="firmaTecnico"
                                 control={control}
                                 render={({ field }) => (
-                                    <SignaturePad title="Firma del Técnico" onEnd={field.onChange} />
+                                    <SignaturePad
+                                        title="Firma del Técnico"
+                                        onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
+                                    />
                                 )}
                             />
                         </div>
