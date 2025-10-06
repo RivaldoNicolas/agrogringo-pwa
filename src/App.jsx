@@ -5,6 +5,8 @@ import { RecommendationForm } from '@/pages/RecommendationForm';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { MainLayout } from '@/layouts/MainLayout';
 import { ConsultationPage } from '@/pages/ConsultationPage';
+import { RecommendationDetailPage } from '@/pages/RecommendationDetailPage';
+import { FollowUpPage } from '@/pages/FollowUpPage';
 import { ProductManagementPage } from '@/pages/ProductManagementPage';
 
 function App() {
@@ -23,6 +25,10 @@ function App() {
           <Route path="/" element={<ConsultationPage />} />
           {/* La página para crear una nueva recomendación */}
           <Route path="/recommendations/new" element={<RecommendationForm />} />
+          {/* Ruta para ver el detalle de una recomendación */}
+          <Route path="/recommendations/:id" element={<RecommendationDetailPage />} />
+          {/* Ruta para el seguimiento de una recomendación */}
+          <Route path="/recommendations/:id/follow-up" element={<FollowUpPage />} />
           {/* Nueva ruta para la gestión de productos */}
           <Route path="/products" element={<ProductManagementPage />} />
         </Route>

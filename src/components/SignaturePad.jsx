@@ -17,16 +17,6 @@ export function SignaturePad({ title, onEnd }) {
         onEnd(null); // Notificar que se ha limpiado
     };
 
-    const save = () => {
-        if (sigCanvas.current.isEmpty()) {
-            alert("Por favor, proporciona una firma.");
-            return;
-        }
-        const signatureData = sigCanvas.current.getTrimmedCanvas().toDataURL('image/png');
-        onEnd(signatureData);
-        setIsSigned(true);
-    };
-
     return (
         <div className="p-4 text-center border-2 border-dashed rounded-lg bg-white">
             <p className="text-sm font-medium text-gray-700 mb-2">{title}</p>
@@ -35,7 +25,13 @@ export function SignaturePad({ title, onEnd }) {
                     ref={sigCanvas}
                     penColor='black'
                     canvasProps={{ className: 'w-full h-32 rounded-md' }}
-                    onEnd={() => onEnd(sigCanvas.current.getTrimmedCanvas().toDataURL('image/png'))}
+                    // Cambiamos getTrimmedCanvas().toDataURL() por solo toDataURL()
+                    // para evitar el error de la librería interna.
+                    onEnd={() => {
+                        const dataUrl = sigCanvas.current.toDataURL('image/png');
+                        onEnd(dataUrl);
+                        setIsSigned(true);
+                    }}
                 />
             </div>
             <div className="flex justify-center gap-2 mt-2">

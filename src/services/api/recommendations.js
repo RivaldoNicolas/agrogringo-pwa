@@ -56,6 +56,47 @@ export const getLastRecommendation = async () => {
 };
 
 /**
+ * Obtiene una recomendación específica por su ID local.
+ * @param {number} localId - El ID local del registro en Dexie.
+ * @returns {Promise<object|undefined>} La recomendación o undefined si no se encuentra.
+ */
+export const getRecommendationById = async (localId) => {
+  // Dexie's get() es la forma más eficiente de obtener un registro por su clave primaria.
+  return await db.recommendations.get(localId);
+};
+
+/**
+ * Actualiza una recomendación existente en la base de datos local.
+ * @param {number} localId - El ID local del registro en Dexie.
+ * @param {object} updates - Un objeto con los campos a actualizar.
+ * @returns {Promise<number>} El número de registros actualizados (debería ser 1).
+ */
+export const updateRecommendation = async (localId, updates) => {
+  try {
+    const recommendation = await db.recommendations.get(localId);
+    if (!recommendation) {
+      throw new Error("Recomendación no encontrada");
+    }
+
+    // Prepara los datos para la actualización
+    const dataToUpdate = {
+      ...updates,
+      timestampUltimaModificacion: new Date(),
+      // Si ya estaba sincronizado, lo marcamos para actualizar. Si no, sigue pendiente de creación.
+      syncStatus:
+        recommendation.syncStatus === "synced"
+          ? "pending_update"
+          : recommendation.syncStatus,
+    };
+
+    return await db.recommendations.update(localId, dataToUpdate);
+  } catch (error) {
+    console.error("Error al actualizar la recomendación localmente:", error);
+    throw error;
+  }
+};
+
+/**
  * Limpia la tabla de recomendaciones.
  */
 export const clearLocalDatabase = async () => {
