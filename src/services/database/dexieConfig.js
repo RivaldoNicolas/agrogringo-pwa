@@ -2,16 +2,17 @@ import Dexie from "dexie";
 
 export const db = new Dexie("agrogringoDB");
 
-db.version(6).stores({
+db.version(7).stores({
   // Tabla para las recomendaciones
-  // Restauramos los índices con la sintaxis correcta.
   recommendations: `
     ++localId,
     id,
     noHoja,
     fecha,
-    dniAgricultor,
-    estado,
+    [userId+fecha],
+    dniAgricultor, 
+    estado, 
+    userId,
     syncStatus,
     timestampUltimaModificacion
   `,

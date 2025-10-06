@@ -148,11 +148,6 @@ export function RecommendationDetailPage() {
                     {/* Productos Recomendados */}
                     <section className="p-4 bg-gray-50 rounded-lg border">
                         <h2 className="text-lg font-bold text-green-800 mb-3">📦 Productos Recomendados</h2>
-                    </section>
-
-                    {/* Productos Recomendados */}
-                    <section className="p-4 bg-gray-50 rounded-lg border">
-                        <h2 className="text-lg font-bold text-green-800 mb-3">📦 Productos Recomendados</h2>
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead className="bg-gray-200">

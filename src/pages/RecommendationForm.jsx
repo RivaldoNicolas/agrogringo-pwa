@@ -55,7 +55,7 @@ export function RecommendationForm() {
                 telefono: '',
             },
             diagnostico: '',
-            detallesProductos: [{ producto: '', cantidad: 1, formaUso: '' }],
+            detallesProductos: [{ producto: '', cantidad: 1, formaUso: '' }], // Aseguramos que formaUso esté aquí
             recomendaciones: [
                 'Almacenar los productos químicos en lugar seguro, alejado del hogar y familia.',
                 'Para preparar y aplicar los plaguicidas, utilizar los implementos de seguridad (EPP).',
@@ -102,7 +102,7 @@ export function RecommendationForm() {
             }
 
             // Guardar la recomendación con la imagen ya convertida
-            await createRecommendation(data);
+            await createRecommendation(data, user.uid);
 
             alert('Recomendación guardada localmente con éxito!');
             navigate('/'); // Volver a la lista
@@ -141,9 +141,12 @@ export function RecommendationForm() {
     // Efecto para obtener el siguiente número de hoja automáticamente
     useEffect(() => {
         const getNextSheetNumber = async () => {
+            // No hacer nada si el usuario aún no ha cargado
+            if (!user) return;
+
             setIsFetchingNextSheet(true);
             try {
-                const lastRecommendation = await getLastRecommendation();
+                const lastRecommendation = await getLastRecommendation(user.uid);
                 let nextNumber = 1;
                 if (lastRecommendation) {
                     // Usamos el número de la última recomendación para calcular el siguiente
@@ -162,7 +165,7 @@ export function RecommendationForm() {
             }
         };
         getNextSheetNumber();
-    }, [setValue]);
+    }, [setValue, user]); // Dependemos del objeto 'user' completo
 
     // Efecto para cargar la lista de productos para el autocompletado
     useEffect(() => {
@@ -199,11 +202,11 @@ export function RecommendationForm() {
     };
 
     return (
-        <div className="max-w-4xl p-4 mx-auto">
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-gray-100 min-h-full">
+            <div className="max-w-4xl mx-auto p-2 sm:p-4">
                 {/* HEADER */}
-                <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-6">
-                    <div className="flex flex-col sm:flex-row justify-between items-center">
+                <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-4 sm:p-6 rounded-t-xl shadow-lg">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div className="flex items-center mb-4 sm:mb-0">
                             <div className="text-5xl mr-4">🌱</div>
                             <div>
@@ -211,7 +214,7 @@ export function RecommendationForm() {
                                 <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>
                             </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right w-full sm:w-auto">
                             <div className="font-bold text-lg">📞 992 431 355</div>
                             <div className="bg-white/25 px-3 py-1 rounded-full text-sm font-bold mt-1">
                                 {isFetchingNextSheet ? (
@@ -232,8 +235,8 @@ export function RecommendationForm() {
                 </div>
 
                 {/* SEARCH SECTION */}
-                <div className="bg-gray-50 p-6 border-b flex justify-between items-center">
-                    <div className="relative flex-grow mr-4">
+                <div className="bg-white p-4 sm:p-6 shadow-lg">
+                    <div className="relative flex-grow">
                         <h3 className="text-lg font-bold text-gray-700 mb-3">🔍 Búsqueda Rápida de Cliente</h3>
                         <label htmlFor="clientSearch" className="block text-sm font-medium text-gray-700 sr-only">Buscar Cliente por DNI o Nombre</label>
                         <input
@@ -260,17 +263,11 @@ export function RecommendationForm() {
                             </ul>
                         )}
                     </div>
-                    <Link
-                        to="/"
-                        className="self-end mb-1 whitespace-nowrap px-4 py-3 font-medium text-white rounded-md bg-primary-600 hover:bg-primary-700"
-                    >
-                        Ver Lista
-                    </Link>
                 </div>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-8">
+                <form onSubmit={handleSubmit(onSubmit)} className="p-2 sm:p-6 space-y-6 bg-gray-100 rounded-b-xl">
                     {/* Datos del Agricultor */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">👨‍🌾 Datos del Agricultor</h2>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div className="md:col-span-2">
@@ -330,7 +327,7 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Datos de la Hoja y Técnico */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">🧑‍🔬 Representante Técnico</h2>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div>
@@ -353,7 +350,7 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Diagnóstico */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">🔬 Diagnóstico en Cultivo</h2>
                         <textarea
                             {...register('diagnostico', { required: 'El diagnóstico es obligatorio' })}
@@ -370,8 +367,8 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Detalles de Productos */}
-                    <section className="p-0 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow overflow-hidden">
-                        <div className="bg-green-800 text-white p-4 flex justify-between items-center">
+                    <section className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <div className="bg-green-800 text-white p-4 flex justify-between items-center rounded-t-lg">
                             <h2 className="text-lg font-bold flex items-center gap-2">📦 Productos Recomendados</h2>
                             <button
                                 type="button"
@@ -381,7 +378,8 @@ export function RecommendationForm() {
                                 + Agregar
                             </button>
                         </div>
-                        <table className="w-full">
+                        {/* --- VISTA DE TABLA PARA ESCRITORIO --- */}
+                        <table className="w-full hidden md:table">
                             <thead className="bg-gray-100">
                                 <tr>
                                     <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-2/5">Producto</th>
@@ -392,7 +390,7 @@ export function RecommendationForm() {
                             </thead>
                             <tbody>
                                 {fields.map((field, index) => (
-                                    <tr key={field.id} className="border-b last:border-0">
+                                    <tr key={field.id} className="border-b last:border-0 align-top">
                                         <td className="p-2">
                                             {/* Usamos Controller para integrar el componente de autocompletado */}
                                             <Controller
@@ -409,19 +407,32 @@ export function RecommendationForm() {
                                             {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
                                         </td>
                                         <td className="p-2">
-                                            <input
-                                                type="number"
-                                                step="0.1"
-                                                {...register(`detallesProductos.${index}.cantidad`, { required: true, valueAsNumber: true, min: { value: 0.1, message: 'Debe ser > 0' } })}
-                                                className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                            <Controller
+                                                name={`detallesProductos.${index}.cantidad`}
+                                                control={control}
+                                                rules={{ required: true, valueAsNumber: true, min: { value: 0.1, message: 'Debe ser > 0' } }}
+                                                render={({ field }) => (
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                    />
+                                                )}
                                             />
                                             {errors.detallesProductos?.[index]?.cantidad && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>}
                                         </td>
                                         <td className="p-2">
-                                            <input
-                                                {...register(`detallesProductos.${index}.formaUso`)}
-                                                className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                                placeholder="Instrucciones"
+                                            <Controller
+                                                name={`detallesProductos.${index}.formaUso`}
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <input
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                        placeholder="Instrucciones"
+                                                    />
+                                                )}
                                             />
                                         </td>
                                         <td className="p-2 text-center">
@@ -433,10 +444,64 @@ export function RecommendationForm() {
                                 ))}
                             </tbody>
                         </table>
+                        {/* --- VISTA DE TARJETAS PARA MÓVIL --- */}
+                        <div className="md:hidden p-2 space-y-3 bg-gray-50">
+                            {fields.map((field, index) => (
+                                <div key={field.id} className="p-3 border rounded-lg bg-white shadow-sm relative">
+                                    <p className="font-bold text-sm text-gray-800 mb-2">Producto #{index + 1}</p>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Nombre</label>
+                                            <Controller
+                                                name={`detallesProductos.${index}.producto`}
+                                                control={control}
+                                                rules={{ required: 'El producto es obligatorio' }}
+                                                render={({ field }) => (
+                                                    <ProductAutocomplete products={productList} {...field} />
+                                                )}
+                                            />
+                                            {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Cantidad</label>
+                                            <Controller
+                                                name={`detallesProductos.${index}.cantidad`}
+                                                control={control}
+                                                rules={{ required: true, valueAsNumber: true, min: { value: 0.1, message: 'Debe ser > 0' } }}
+                                                render={({ field }) => (
+                                                    <input
+                                                        type="number"
+                                                        step="0.1"
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                    />
+                                                )}
+                                            />
+                                            {errors.detallesProductos?.[index]?.cantidad && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>}
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Forma de Uso</label>
+                                            <Controller
+                                                name={`detallesProductos.${index}.formaUso`}
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <input
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                        placeholder="Instrucciones"
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-2xl leading-none">&times;</button>
+                                </div>
+                            ))}
+                        </div>
                     </section>
 
                     {/* Recomendaciones de Seguridad */}
-                    <section className="p-6 bg-green-50 rounded-xl border-2 border-green-200">
+                    <section className="bg-green-50 p-4 sm:p-6 rounded-xl border-2 border-green-200">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">💡 Recomendaciones de Seguridad</h2>
                         <div className="space-y-4">
                             <ul className="space-y-2 list-disc list-inside text-gray-700">
@@ -463,7 +528,7 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Seguimiento Inicial y Firmas */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">✍️ Evidencia y Firmas</h2>
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                             <div>
@@ -497,17 +562,18 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Botón de Guardar */}
-                    <div className="flex justify-end">
+                    <div className="flex justify-center sm:justify-end pt-4">
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="btn btn-save flex items-center justify-center gap-2 px-8 py-3 text-lg font-bold text-white rounded-lg bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:bg-gray-400 disabled:shadow-none disabled:transform-none"
+                            className="w-full sm:w-auto btn btn-save flex items-center justify-center gap-2 px-8 py-3 text-lg font-bold text-white rounded-lg bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:bg-gray-400 disabled:shadow-none disabled:transform-none"
                         >
                             💾
                             <span>{isSubmitting ? 'Guardando...' : 'Guardar Hoja'}</span>
                         </button>
                     </div>
-                </form></div>
+                </form>
+            </div>
         </div>
     );
 }

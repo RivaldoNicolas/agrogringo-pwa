@@ -1,4 +1,5 @@
 import { db } from "@/services/database/dexieConfig";
+import Dexie from "dexie";
 import { v4 as uuidv4 } from "uuid"; // Necesitarás instalar uuid: npm install uuid
 import { putClient } from "./clients";
 
@@ -8,12 +9,13 @@ import { putClient } from "./clients";
  * @param {object} recommendationData - Los datos del formulario.
  * @returns {Promise<number>} El ID local del nuevo registro en Dexie.
  */
-export const createRecommendation = async (recommendationData) => {
+export const createRecommendation = async (recommendationData, userId) => {
   try {
     const newRecommendation = {
       ...recommendationData, // Datos del formulario
       id: uuidv4(), // Genera un ID único universal
       dniAgricultor: recommendationData.datosAgricultor?.dni || "",
+      userId: userId,
       emailTecnico: recommendationData.datosTecnico?.email || "",
       fecha: new Date(), // Sello de tiempo de creación
       syncStatus: "pending_creation", // Marca para sincronización
@@ -38,21 +40,35 @@ export const createRecommendation = async (recommendationData) => {
 
 /**
  * Obtiene todas las recomendaciones de la base de datos local.
+ * @param {string} userId - El ID del usuario.
  * @returns {Promise<Array<object>>} Un array con las recomendaciones.
  */
-export const getAllRecommendations = async () => {
-  // Ordenamos por fecha descendente usando el índice 'fecha'.
-  return await db.recommendations.orderBy("fecha").reverse().toArray();
+export const getAllRecommendations = async (userId) => {
+  if (!userId || typeof userId !== "string") {
+    return [];
+  }
+
+  // 1. Obtenemos TODAS las recomendaciones de la base de datos.
+  const allRecsFromDB = await db.recommendations.toArray();
+
+  // 2. Filtramos en memoria: nos quedamos con las que son del usuario o las que no tienen userId (antiguas).
+  const allRecs = allRecsFromDB.filter(
+    (rec) => rec.userId === userId || rec.userId === undefined
+  );
+
+  // 3. Las ordenamos por fecha en memoria (de más reciente a más antigua).
+  return allRecs.sort((a, b) => b.fecha - a.fecha);
 };
 
 /**
- * Obtiene la última recomendación registrada en la base de datos local.
+ * Obtiene la última recomendación registrada para un usuario específico.
+ * @param {string} userId - El ID del usuario.
  * @returns {Promise<object|undefined>} La última recomendación o undefined si no hay ninguna.
  */
-export const getLastRecommendation = async () => {
-  // .orderBy('fecha').last() es la forma más eficiente de obtener el último registro.
-  // No necesitamos traer toda la colección a memoria.
-  return await db.recommendations.orderBy("fecha").last();
+export const getLastRecommendation = async (userId) => {
+  // Obtenemos todas las recomendaciones (del usuario y antiguas) y encontramos la última.
+  const allRecs = await getAllRecommendations(userId);
+  return allRecs.length > 0 ? allRecs[0] : undefined;
 };
 
 /**
@@ -94,6 +110,15 @@ export const updateRecommendation = async (localId, updates) => {
     console.error("Error al actualizar la recomendación localmente:", error);
     throw error;
   }
+};
+
+/**
+ * Elimina una recomendación de la base de datos local.
+ * @param {number} localId - El ID local del registro en Dexie.
+ * @returns {Promise<void>}
+ */
+export const deleteRecommendation = async (localId) => {
+  return await db.recommendations.delete(localId);
 };
 
 /**

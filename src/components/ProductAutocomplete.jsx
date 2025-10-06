@@ -19,7 +19,6 @@ export function ProductAutocomplete({ products, value, onChange }) {
     const handleInputChange = (e) => {
         const query = e.target.value;
         setInputValue(query);
-        onChange(query); // Actualiza el valor en react-hook-form
 
         if (query.length > 1) {
             // Búsqueda más precisa: prioriza los que empiezan con la consulta

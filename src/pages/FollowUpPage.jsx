@@ -86,16 +86,16 @@ export function FollowUpPage() {
     if (!recommendation) return null;
 
     return (
-        <div className="max-w-2xl p-4 mx-auto">
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-                <div className="bg-gradient-to-r from-orange-600 to-yellow-500 text-white p-6">
+        <div className="bg-gray-100 min-h-full">
+            <div className="max-w-2xl mx-auto p-2 sm:p-4">
+                <div className="bg-gradient-to-r from-orange-600 to-yellow-500 text-white p-4 sm:p-6 rounded-t-xl shadow-lg">
                     <h1 className="text-2xl font-bold">Seguimiento de Recomendación</h1>
                     <p>Cliente: <strong>{recommendation.datosAgricultor.nombre}</strong> (Hoja N° {recommendation.noHoja})</p>
                 </div>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-6">
+                <form onSubmit={handleSubmit(onSubmit)} className="p-4 sm:p-6 space-y-6 bg-white rounded-b-xl shadow-lg">
                     {/* Sección de Estado */}
-                    <section>
+                    <section className="p-4 bg-gray-50 rounded-lg border">
                         <h2 className="text-lg font-bold text-gray-800 mb-3">Estado Actual: <span className="text-primary-600">{estadoActual}</span></h2>
                         <div className="flex flex-wrap gap-3">
                             <button
@@ -124,7 +124,7 @@ export function FollowUpPage() {
 
                     {/* Sección de Finalización (solo si el estado es 'Finalizado') */}
                     {estadoActual === 'Finalizado' && (
-                        <section className="p-4 bg-green-50 rounded-lg border-l-4 border-green-500 animate-fade-in">
+                        <section className="p-4 bg-green-50 rounded-lg border border-green-200 animate-fade-in">
                             <h2 className="text-lg font-bold text-green-800 mb-4">Completar Tratamiento</h2>
                             <div className="space-y-4">
                                 <div>
@@ -147,17 +147,17 @@ export function FollowUpPage() {
                     )}
 
                     {/* Botones de Acción */}
-                    <div className="flex justify-between items-center pt-4">
+                    <div className="flex flex-col-reverse sm:flex-row justify-between items-center pt-4 gap-4">
                         <Link
                             to="/"
-                            className="btn btn-back bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg"
+                            className="w-full sm:w-auto text-center btn btn-back bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg"
                         >
                             Cancelar
                         </Link>
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="btn btn-save bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-400"
+                            className="w-full sm:w-auto btn btn-save bg-primary-600 hover:bg-primary-700 text-white font-bold py-2 px-6 rounded-lg disabled:bg-gray-400"
                         >
                             {isSubmitting ? 'Guardando...' : 'Guardar Seguimiento'}
                         </button>
@@ -165,5 +165,6 @@ export function FollowUpPage() {
                 </form>
             </div>
         </div>
+
     );
 }
