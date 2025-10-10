@@ -1,6 +1,7 @@
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { logout as firebaseLogout } from '@/services/auth';
+import toast from 'react-hot-toast';
 
 const navLinks = [
     { to: '/', text: 'Consultas', icon: '🔍' },
@@ -21,6 +22,7 @@ export function BottomNavbar() {
             if (authContextLogout) authContextLogout();
             navigate('/login');
         } catch (error) {
+            toast.error('Error al cerrar sesión.');
             console.error('Error al cerrar sesión desde el móvil:', error);
         }
     };

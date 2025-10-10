@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { getRecommendationById, updateRecommendation } from '@/services/api/recommendations';
+import toast from 'react-hot-toast';
+
 
 export function FollowUpPage() {
     const { id } = useParams();
@@ -69,10 +71,10 @@ export function FollowUpPage() {
             }
 
             await updateRecommendation(Number(id), updates);
-            alert('Seguimiento guardado con éxito.');
+            toast.success('Seguimiento guardado con éxito.');
             navigate('/'); // Volver a la lista
         } catch (err) {
-            alert('Error al guardar el seguimiento.');
+            toast.error('Error al guardar el seguimiento.');
             console.error(err);
         }
     };

@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { createRecommendation, getLastRecommendation } from '@/services/api/recommendations';
+import { createRecommendation, getLastRecommendation, getRecommendationById, updateRecommendation } from '@/services/api/recommendations';
 import { searchClients } from '@/services/api/clients';
 import { getAllProducts } from '@/services/api/products';
+import toast from 'react-hot-toast';
+import { updateUserProfile } from '@/services/api/userProfiles';
 import { SignaturePad } from '@/components/SignaturePad';
 import { ProductAutocomplete } from '@/components/ProductAutocomplete';
+import { db } from '@/services/database/dexieConfig';
 
 // Datos geográficos de Ucayali
 const ucayaliData = {
@@ -20,6 +23,9 @@ const ucayaliData = {
 
 export function RecommendationForm() {
     const navigate = useNavigate();
+    const { id } = useParams(); // Obtiene el ID de la URL si existe
+    const isEditMode = !!id; // True si hay un ID, false si no
+
     const { user } = useAuth();
     const [clientSearch, setClientSearch] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -55,7 +61,7 @@ export function RecommendationForm() {
                 telefono: '',
             },
             diagnostico: '',
-            detallesProductos: [{ producto: '', cantidad: 1, formaUso: '' }], // Aseguramos que formaUso esté aquí
+            detallesProductos: [{ producto: '', cantidad: 1, formaUso: '' }],
             recomendaciones: [
                 'Almacenar los productos químicos en lugar seguro, alejado del hogar y familia.',
                 'Para preparar y aplicar los plaguicidas, utilizar los implementos de seguridad (EPP).',
@@ -91,23 +97,34 @@ export function RecommendationForm() {
 
     const onSubmit = async (data) => {
         try {
-            // Procesar la imagen "fotoAntes" si existe
-            if (data.seguimiento.fotoAntes && data.seguimiento.fotoAntes.length > 0) {
+            // Solo procesa la imagen si es un archivo nuevo (objeto File)
+            if (data.seguimiento.fotoAntes instanceof FileList && data.seguimiento.fotoAntes.length > 0) {
                 const file = data.seguimiento.fotoAntes[0];
                 const base64Image = await fileToBase64(file);
                 data.seguimiento.fotoAntes = base64Image;
-            } else {
-                // Si no se seleccionó archivo, asegúrate de que sea null
-                data.seguimiento.fotoAntes = null;
             }
 
-            // Guardar la recomendación con la imagen ya convertida
-            await createRecommendation(data, user.uid);
+            if (isEditMode) {
+                // Lógica de Actualización
+                // Quitamos datos que no deben actualizarse directamente
+                const { noHoja, ...updateData } = data;
+                await updateRecommendation(Number(id), updateData);
+                toast.success('Recomendación actualizada con éxito!');
+                navigate('/');
+            } else {
+                // Lógica de Creación
+                if (!data.seguimiento.fotoAntes) {
+                    // Si no se seleccionó archivo, asegúrate de que sea null
+                    data.seguimiento.fotoAntes = null;
+                }
+                // Guardar la recomendación con la imagen ya convertida
+                await createRecommendation(data, user.uid);
 
-            alert('Recomendación guardada localmente con éxito!');
-            navigate('/'); // Volver a la lista
+                toast.success('Recomendación guardada con éxito!');
+                navigate('/'); // Volver a la lista
+            }
         } catch (error) {
-            alert('Hubo un error al guardar la recomendación.');
+            toast.error('Hubo un error al guardar la recomendación.');
             console.error(error);
         }
     };
@@ -140,32 +157,61 @@ export function RecommendationForm() {
 
     // Efecto para obtener el siguiente número de hoja automáticamente
     useEffect(() => {
-        const getNextSheetNumber = async () => {
-            // No hacer nada si el usuario aún no ha cargado
-            if (!user) return;
-
-            setIsFetchingNextSheet(true);
-            try {
-                const lastRecommendation = await getLastRecommendation(user.uid);
-                let nextNumber = 1;
-                if (lastRecommendation) {
-                    // Usamos el número de la última recomendación para calcular el siguiente
-                    const lastNumber = parseInt(lastRecommendation.noHoja, 10);
-                    if (!isNaN(lastNumber)) {
-                        nextNumber = lastNumber + 1;
+        const loadFormData = async () => {
+            if (isEditMode) {
+                // MODO EDICIÓN: Cargar datos de la recomendación existente
+                try {
+                    const recommendationData = await getRecommendationById(Number(id));
+                    if (recommendationData) {
+                        // Usamos reset para poblar todo el formulario con los datos cargados
+                        // Si no hay firma de técnico en los datos guardados, intentamos cargar la del perfil
+                        if (!recommendationData.firmaTecnico && user) {
+                            const userProfile = await db.userProfiles.get(user.uid);
+                            if (userProfile?.signature) {
+                                recommendationData.firmaTecnico = userProfile.signature;
+                            }
+                        }
+                        reset(recommendationData);
+                    } else {
+                        toast.error("No se encontró la recomendación para editar.");
+                        navigate('/');
                     }
+                } catch (error) {
+                    toast.error("Error al cargar la recomendación.");
+                    navigate('/');
                 }
-                // Formateamos el número a 3 dígitos (e.g., 1 -> "001", 12 -> "012")
-                setValue('noHoja', nextNumber.toString().padStart(3, '0'));
-            } catch (error) {
-                console.error("Error fetching next sheet number:", error);
-                setValue('noHoja', '001'); // Fallback en caso de error
-            } finally {
-                setIsFetchingNextSheet(false);
+            } else {
+                // MODO CREACIÓN: Obtener el siguiente número de hoja
+                if (!user) return;
+                setIsFetchingNextSheet(true);
+                // Cargar la firma por defecto del técnico
+                const userProfile = await db.userProfiles.get(user.uid);
+                if (userProfile?.signature) {
+                    setValue('firmaTecnico', userProfile.signature);
+                }
+
+                try {
+                    const lastRecommendation = await getLastRecommendation(user.uid);
+                    let nextNumber = 1;
+                    if (lastRecommendation && lastRecommendation.noHoja) {
+                        const lastNumber = parseInt(lastRecommendation.noHoja, 10);
+                        if (!isNaN(lastNumber)) {
+                            nextNumber = lastNumber + 1;
+                        }
+                    }
+                    setValue('noHoja', nextNumber.toString().padStart(3, '0'));
+                } catch (error) {
+                    console.error("Error fetching next sheet number:", error);
+                    setValue('noHoja', '001'); // Fallback
+                } finally {
+                    setIsFetchingNextSheet(false);
+                }
             }
         };
-        getNextSheetNumber();
-    }, [setValue, user]); // Dependemos del objeto 'user' completo
+
+        loadFormData();
+
+    }, [id, isEditMode, user, navigate, reset, setValue]);
 
     // Efecto para cargar la lista de productos para el autocompletado
     useEffect(() => {
@@ -196,10 +242,45 @@ export function RecommendationForm() {
         setValue('datosAgricultor.provincia', client.provincia || '');
         setValue('datosAgricultor.distrito', client.distrito || '');
         setValue('datosAgricultor.adelanto', client.adelanto || 0);
+        // ¡Aquí está la magia! Si el cliente tiene una firma guardada, la cargamos.
+        if (client.signature) {
+            setValue('firmaAgricultor', client.signature);
+        }
         // Limpiamos la búsqueda
         setClientSearch('');
         setSearchResults([]);
     };
+
+    const handleProductSelect = (product, index) => {
+        // Cuando un producto es seleccionado del autocompletado,
+        // rellenamos los campos correspondientes.
+        setValue(`detallesProductos.${index}.producto`, product.nombre);
+        // Usamos la cantidad del catálogo o 1 si no está definida.
+        setValue(`detallesProductos.${index}.cantidad`, parseFloat(product.cantidad) || 1);
+        setValue(`detallesProductos.${index}.formaUso`, product.formaDeUso || '');
+    };
+
+    const handleSaveTechnicianSignature = async () => {
+        const signature = watch('firmaTecnico');
+        if (!signature) {
+            toast.error('No hay firma para guardar.');
+            return;
+        }
+        if (!user) {
+            toast.error('No se pudo identificar al usuario.');
+            return;
+        }
+
+        try {
+            await updateUserProfile(user.uid, { signature });
+            toast.success('Firma guardada como predeterminada.');
+        } catch (error) {
+            toast.error('Error al guardar la firma.');
+        }
+    };
+
+    // Función para añadir una nueva fila de producto con valores por defecto
+    const addProductRow = () => append({ producto: '', cantidad: 1, formaUso: '' });
 
     return (
         <div className="bg-gray-100 min-h-full">
@@ -210,7 +291,7 @@ export function RecommendationForm() {
                         <div className="flex items-center mb-4 sm:mb-0">
                             <div className="text-5xl mr-4">🌱</div>
                             <div>
-                                <h1 className="text-2xl font-bold text-shadow">AGRONEGOCIOS GRINGO</h1>
+                                <h1 className="text-2xl font-bold text-shadow">{isEditMode ? 'EDITAR RECOMENDACIÓN' : 'AGRONEGOCIOS GRINGO'}</h1>
                                 <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>
                             </div>
                         </div>
@@ -225,7 +306,7 @@ export function RecommendationForm() {
                                         placeholder="N° 001"
                                         {...register('noHoja', { required: 'El N° de hoja es obligatorio' })}
                                         className="bg-transparent text-white placeholder-white/70 text-center outline-none w-28"
-                                        readOnly
+                                        readOnly // El número de hoja no se debe cambiar
                                     />
                                 )}
                             </div>
@@ -372,7 +453,7 @@ export function RecommendationForm() {
                             <h2 className="text-lg font-bold flex items-center gap-2">📦 Productos Recomendados</h2>
                             <button
                                 type="button"
-                                onClick={() => append({ producto: '', cantidad: 1, formaUso: '' })}
+                                onClick={addProductRow}
                                 className="bg-white text-green-800 font-bold py-1 px-3 rounded-full text-sm hover:bg-green-100 transition"
                             >
                                 + Agregar
@@ -398,9 +479,12 @@ export function RecommendationForm() {
                                                 control={control}
                                                 rules={{ required: 'El producto es obligatorio' }}
                                                 render={({ field }) => (
+                                                    // Pasamos una función onSelect para manejar el autocompletado
                                                     <ProductAutocomplete
                                                         products={productList}
-                                                        {...field} // Pasa value, onChange, onBlur
+                                                        value={field.value}
+                                                        onChange={(value) => field.onChange(value)}
+                                                        onSelect={(product) => handleProductSelect(product, index)}
                                                     />
                                                 )}
                                             />
@@ -410,11 +494,11 @@ export function RecommendationForm() {
                                             <Controller
                                                 name={`detallesProductos.${index}.cantidad`}
                                                 control={control}
-                                                rules={{ required: true, valueAsNumber: true, min: { value: 0.1, message: 'Debe ser > 0' } }}
+                                                rules={{ required: 'Cantidad requerida', valueAsNumber: true, min: { value: 0.01, message: 'Debe ser > 0' } }}
                                                 render={({ field }) => (
                                                     <input
                                                         type="number"
-                                                        step="0.1"
+                                                        step="any" // Permite decimales
                                                         {...field}
                                                         className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
                                                     />
@@ -457,7 +541,12 @@ export function RecommendationForm() {
                                                 control={control}
                                                 rules={{ required: 'El producto es obligatorio' }}
                                                 render={({ field }) => (
-                                                    <ProductAutocomplete products={productList} {...field} />
+                                                    <ProductAutocomplete
+                                                        products={productList}
+                                                        value={field.value}
+                                                        onChange={(value) => field.onChange(value)}
+                                                        onSelect={(product) => handleProductSelect(product, index)}
+                                                    />
                                                 )}
                                             />
                                             {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
@@ -467,11 +556,11 @@ export function RecommendationForm() {
                                             <Controller
                                                 name={`detallesProductos.${index}.cantidad`}
                                                 control={control}
-                                                rules={{ required: true, valueAsNumber: true, min: { value: 0.1, message: 'Debe ser > 0' } }}
+                                                rules={{ required: 'Cantidad requerida', valueAsNumber: true, min: { value: 0.01, message: 'Debe ser > 0' } }}
                                                 render={({ field }) => (
                                                     <input
                                                         type="number"
-                                                        step="0.1"
+                                                        step="any"
                                                         {...field}
                                                         className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
                                                     />
@@ -543,6 +632,7 @@ export function RecommendationForm() {
                                     <SignaturePad
                                         title="Firma del Agricultor"
                                         // Aseguramos que solo se guarde la URL de la imagen
+                                        initialDataURL={watch('firmaAgricultor')}
                                         onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
                                     />
                                 )}
@@ -552,10 +642,21 @@ export function RecommendationForm() {
                                 name="firmaTecnico"
                                 control={control}
                                 render={({ field }) => (
-                                    <SignaturePad
-                                        title="Firma del Técnico"
-                                        onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
-                                    />
+                                    // Agrupamos el pad y el botón para que JSX sea válido
+                                    <div>
+                                        <SignaturePad
+                                            title="Firma del Técnico"
+                                            initialDataURL={watch('firmaTecnico')}
+                                            onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveTechnicianSignature}
+                                            className="w-full mt-2 text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded"
+                                        >
+                                            Guardar como firma predeterminada
+                                        </button>
+                                    </div>
                                 )}
                             />
                         </div>

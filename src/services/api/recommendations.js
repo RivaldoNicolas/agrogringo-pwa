@@ -27,7 +27,12 @@ export const createRecommendation = async (recommendationData, userId) => {
 
     // Guardar/Actualizar el cliente en su propia tabla para futuras búsquedas
     if (recommendationData.datosAgricultor?.dni) {
-      await putClient(recommendationData.datosAgricultor);
+      const clientData = { ...recommendationData.datosAgricultor };
+      // Si hay una firma, la añadimos al perfil del cliente.
+      if (recommendationData.firmaAgricultor) {
+        clientData.signature = recommendationData.firmaAgricultor;
+      }
+      await putClient(clientData);
     }
 
     console.log("Recomendación guardada localmente con ID:", localId);
@@ -40,35 +45,66 @@ export const createRecommendation = async (recommendationData, userId) => {
 
 /**
  * Obtiene todas las recomendaciones de la base de datos local.
+ * Implementa paginación para un rendimiento óptimo con grandes volúmenes de datos.
  * @param {string} userId - El ID del usuario.
- * @returns {Promise<Array<object>>} Un array con las recomendaciones.
+ * @param {number} [page=1] - El número de página a obtener.
+ * @param {number} [pageSize=15] - El número de elementos por página.
+ * @param {object} [filters={}] - Objeto con filtros a aplicar.
+ * @returns {Promise<{data: Array<object>, total: number}>} Un objeto con las recomendaciones y el conteo total.
  */
-export const getAllRecommendations = async (userId) => {
+export const getAllRecommendations = async (
+  userId,
+  page = 1,
+  pageSize = 15,
+  filters = {}
+) => {
   if (!userId || typeof userId !== "string") {
-    return [];
+    return { data: [], total: 0 };
   }
 
-  // 1. Obtenemos TODAS las recomendaciones de la base de datos.
-  const allRecsFromDB = await db.recommendations.toArray();
+  const offset = (page - 1) * pageSize;
 
-  // 2. Filtramos en memoria: nos quedamos con las que son del usuario o las que no tienen userId (antiguas).
-  const allRecs = allRecsFromDB.filter(
-    (rec) => rec.userId === userId || rec.userId === undefined
-  );
+  // Empezamos la consulta filtrando por usuario
+  let query = db.recommendations.where({ userId: userId });
 
-  // 3. Las ordenamos por fecha en memoria (de más reciente a más antigua).
-  return allRecs.sort((a, b) => b.fecha - a.fecha);
+  // Aplicamos los filtros adicionales si existen
+  if (filters.status) {
+    query = query.and((rec) => rec.estado === filters.status);
+  }
+  if (filters.dateFrom) {
+    query = query.and((rec) => rec.fecha >= new Date(filters.dateFrom));
+  }
+  if (filters.dateTo) {
+    // Añadimos un día para incluir todo el día de la fecha "hasta"
+    const dateTo = new Date(filters.dateTo);
+    dateTo.setDate(dateTo.getDate() + 1);
+    query = query.and((rec) => rec.fecha < dateTo);
+  }
+  if (filters.client) {
+    const lowerCaseFilter = filters.client.toLowerCase();
+    query = query.and(
+      (rec) =>
+        rec.datosAgricultor.nombre.toLowerCase().includes(lowerCaseFilter) ||
+        rec.datosAgricultor.dni.includes(lowerCaseFilter)
+    );
+  }
+
+  const total = await query.count();
+  const data = await query.reverse().offset(offset).limit(pageSize).toArray();
+
+  return { data, total };
 };
 
 /**
  * Obtiene la última recomendación registrada para un usuario específico.
+ * Esta función está ahora altamente optimizada.
  * @param {string} userId - El ID del usuario.
  * @returns {Promise<object|undefined>} La última recomendación o undefined si no hay ninguna.
  */
 export const getLastRecommendation = async (userId) => {
-  // Obtenemos todas las recomendaciones (del usuario y antiguas) y encontramos la última.
-  const allRecs = await getAllRecommendations(userId);
-  return allRecs.length > 0 ? allRecs[0] : undefined;
+  // Usamos el índice [userId+fecha] y el método .last() de Dexie para obtener
+  // el último registro de forma súper eficiente, sin cargar toda la tabla.
+  return await db.recommendations.where({ userId: userId }).last();
 };
 
 /**
@@ -104,6 +140,16 @@ export const updateRecommendation = async (localId, updates) => {
           ? "pending_update"
           : recommendation.syncStatus,
     };
+
+    // Al actualizar, también actualizamos el perfil del cliente con la firma más reciente si existe
+    if (updates.datosAgricultor?.dni) {
+      const clientData = { ...updates.datosAgricultor };
+      // Si hay una firma en la actualización, la guardamos en el perfil del cliente.
+      if (updates.firmaAgricultor) {
+        clientData.signature = updates.firmaAgricultor;
+      }
+      await putClient(clientData);
+    }
 
     return await db.recommendations.update(localId, dataToUpdate);
   } catch (error) {

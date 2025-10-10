@@ -31,3 +31,17 @@ export const addProduct = async (productData) => {
  * Obtiene todos los productos de la base de datos local.
  */
 export const getAllProducts = () => db.products.orderBy("nombre").toArray();
+
+/**
+ * Elimina un producto de la base de datos local.
+ * @param {number} localId - El ID local del producto a eliminar.
+ * @returns {Promise<void>}
+ */
+export const deleteProduct = async (localId) => {
+  try {
+    return await db.products.delete(localId);
+  } catch (error) {
+    console.error("Error al eliminar el producto localmente:", error);
+    throw error;
+  }
+};

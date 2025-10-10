@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { getAllRecommendations, deleteRecommendation } from '@/services/api/recommendations';
 import { useAuth } from '@/hooks/useAuth';
+import toast from 'react-hot-toast';
 import { ChevronDownIcon, FunnelIcon } from '@heroicons/react/24/solid'; // Necesitarás instalar @heroicons/react
 import { Link } from 'react-router-dom';
 
 export function ConsultationPage() {
-    const [recommendations, setRecommendations] = useState([]);
     const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -18,6 +18,12 @@ export function ConsultationPage() {
     const [dateToFilter, setDateToFilter] = useState('');
     const [showFilters, setShowFilters] = useState(false); // Estado para mostrar/ocultar filtros en móvil
 
+    // Estados para paginación
+    const [page, setPage] = useState(1);
+    const [hasMore, setHasMore] = useState(true);
+    const [totalCount, setTotalCount] = useState(0);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+
     // Estilos para los estados, para mantener consistencia
     const estadoStyles = {
         'Pendiente': 'bg-yellow-100 text-yellow-800',
@@ -25,51 +31,45 @@ export function ConsultationPage() {
         'Finalizado': 'bg-green-100 text-green-800',
     };
 
-    useEffect(() => {
-        const fetchRecommendations = async () => {
-            // No hacer nada si el usuario aún no ha cargado
-            if (!user) return;
+    const fetchRecommendations = async (currentPage, currentFilters, loadMore = false) => {
+        if (!user) return;
 
-            try {
-                setLoading(true);
-                const data = await getAllRecommendations(user.uid);
-                setRecommendations(data);
-                setFilteredData(data); // Inicialmente mostrar todos
-            } catch (err) {
-                setError('No se pudieron cargar las recomendaciones.');
-                console.error(err);
-            } finally {
-                setLoading(false);
+        if (loadMore) {
+            setIsLoadingMore(true);
+        } else {
+            setLoading(true);
+        }
+
+        try {
+            const { data, total } = await getAllRecommendations(user.uid, currentPage, 15, currentFilters);
+
+            if (loadMore) {
+                setFilteredData(prevData => [...prevData, ...data]);
+            } else {
+                setFilteredData(data);
+                setTotalCount(total);
             }
-        };
 
-        fetchRecommendations(); // Se ejecutará cada vez que 'user' cambie
-    }, [user]); // Dependemos del objeto 'user' completo
+            setHasMore(currentPage * 15 < total);
+
+        } catch (err) {
+            setError('No se pudieron cargar las recomendaciones.');
+            console.error(err);
+        } finally {
+            setLoading(false);
+            setIsLoadingMore(false);
+        }
+    };
+
+    useEffect(() => {
+        // Carga inicial
+        fetchRecommendations(1, {});
+    }, [user]);
 
     const applyFilters = () => {
-        let data = [...recommendations];
-
-        if (clientFilter) {
-            const lowerCaseFilter = clientFilter.toLowerCase();
-            data = data.filter(item =>
-                item.datosAgricultor.nombre.toLowerCase().includes(lowerCaseFilter) ||
-                item.datosAgricultor.dni.includes(lowerCaseFilter)
-            );
-        }
-
-        if (statusFilter) {
-            data = data.filter(item => item.estado === statusFilter);
-        }
-
-        if (dateFromFilter) {
-            data = data.filter(item => new Date(item.fecha) >= new Date(dateFromFilter));
-        }
-
-        if (dateToFilter) {
-            data = data.filter(item => new Date(item.fecha) <= new Date(dateToFilter));
-        }
-
-        setFilteredData(data);
+        setPage(1); // Reseteamos la página a 1
+        const filters = { client: clientFilter, status: statusFilter, dateFrom: dateFromFilter, dateTo: dateToFilter };
+        fetchRecommendations(1, filters);
     };
 
     const clearFilters = () => {
@@ -77,7 +77,15 @@ export function ConsultationPage() {
         setStatusFilter('');
         setDateFromFilter('');
         setDateToFilter('');
-        setFilteredData(recommendations);
+        setPage(1);
+        fetchRecommendations(1, {}); // Volvemos a cargar sin filtros
+    };
+
+    const loadMore = () => {
+        const nextPage = page + 1;
+        setPage(nextPage);
+        const filters = { client: clientFilter, status: statusFilter, dateFrom: dateFromFilter, dateTo: dateToFilter };
+        fetchRecommendations(nextPage, filters, true);
     };
 
     const handleDelete = async (localId, nombreCliente) => {
@@ -85,12 +93,11 @@ export function ConsultationPage() {
             try {
                 await deleteRecommendation(localId);
                 // Actualizar el estado para reflejar la eliminación en la UI
-                const updatedRecommendations = recommendations.filter(rec => rec.localId !== localId);
-                setRecommendations(updatedRecommendations);
-                setFilteredData(updatedRecommendations);
-                alert('Recomendación eliminada con éxito.');
+                setFilteredData(prev => prev.filter(rec => rec.localId !== localId));
+                setTotalCount(prev => prev - 1);
+                toast.success('Recomendación eliminada con éxito.');
             } catch (err) {
-                alert('Error al eliminar la recomendación.');
+                toast.error('Error al eliminar la recomendación.');
                 console.error(err);
             }
         }
@@ -133,13 +140,13 @@ export function ConsultationPage() {
                         </div>
                         <div className="flex gap-2">
                             <button
-                                onClick={() => alert('Funcionalidad de exportar a Excel pendiente de implementación.')}
+                                onClick={() => toast.error('Exportar a Excel aún no está implementado.')}
                                 className="btn-export bg-white/20 border-white/30 hover:bg-white/30 border-2 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
                             >
                                 📊 Excel
                             </button>
                             <button
-                                onClick={() => alert('Funcionalidad de exportar a PDF pendiente de implementación.')}
+                                onClick={() => toast.error('Exportar a PDF aún no está implementado.')}
                                 className="btn-export bg-white/20 border-white/30 hover:bg-white/30 border-2 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
                             >
                                 📄 PDF
@@ -209,7 +216,7 @@ export function ConsultationPage() {
                 <div className="results-header mb-4 flex justify-between items-center">
                     <h2 className="text-xl font-bold text-gray-700">Resultados</h2>
                     <div className="results-count font-semibold text-gray-600">
-                        Mostrando <strong>{filteredData.length}</strong> de <strong>{recommendations.length}</strong>
+                        Mostrando <strong>{filteredData.length}</strong> de <strong>{totalCount}</strong>
                     </div>
                 </div>
 
@@ -242,7 +249,7 @@ export function ConsultationPage() {
                                     <td className="p-3 flex gap-2 justify-center">
                                         <Link to={`/recommendations/${rec.localId}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded flex items-center gap-1">👁️ Ver</Link>
                                         <Link to={`/recommendations/${rec.localId}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded flex items-center gap-1">📸 Seguir</Link>
-                                        <button onClick={() => alert('La funcionalidad de editar se implementará en la Fase 2.')} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded">✏️ Edit</button>
+                                        <Link to={`/recommendations/edit/${rec.localId}`} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded flex items-center gap-1">✏️ Edit</Link>
                                         <button onClick={() => handleDelete(rec.localId, rec.datosAgricultor.nombre)} className="btn-action bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded flex items-center gap-1">🗑️ Eliminar</button>
                                     </td>
                                 </tr>
@@ -280,6 +287,7 @@ export function ConsultationPage() {
                                 </span>
                                 <div className="flex gap-2">
                                     <Link to={`/recommendations/${rec.localId}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">👁️</Link>
+                                    <Link to={`/recommendations/edit/${rec.localId}`} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">✏️</Link>
                                     <Link to={`/recommendations/${rec.localId}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">📸</Link>
                                     <button onClick={() => handleDelete(rec.localId, rec.datosAgricultor.nombre)} className="btn-action bg-red-600 hover:bg-red-700 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">🗑️</button>
                                 </div>
@@ -293,6 +301,19 @@ export function ConsultationPage() {
                         </div>
                     )}
                 </div>
+
+                {/* BOTÓN CARGAR MÁS */}
+                {hasMore && (
+                    <div className="mt-6 text-center">
+                        <button
+                            onClick={loadMore}
+                            disabled={isLoadingMore}
+                            className="bg-white text-green-700 font-bold py-2 px-6 rounded-full border-2 border-green-700 hover:bg-green-700 hover:text-white transition disabled:bg-gray-200 disabled:text-gray-400 disabled:border-gray-300"
+                        >
+                            {isLoadingMore ? 'Cargando...' : 'Cargar Más'}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -1,15 +1,24 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 
 /**
  * Componente para capturar una firma digital.
  * @param {object} props
  * @param {string} props.title - Título para el pad de firma (e.g., "Firma del Agricultor").
+ * @param {string} [props.initialDataURL] - Una firma en formato base64 para cargarla inicialmente.
  * @param {function} props.onEnd - Callback que se ejecuta cuando se termina de firmar, pasando la firma en formato base64.
  */
-export function SignaturePad({ title, onEnd }) {
+export function SignaturePad({ title, initialDataURL, onEnd }) {
     const sigCanvas = useRef({});
     const [isSigned, setIsSigned] = useState(false);
+
+    useEffect(() => {
+        // Si recibimos una firma inicial y el canvas está listo, la dibujamos.
+        if (initialDataURL && sigCanvas.current) {
+            sigCanvas.current.fromDataURL(initialDataURL);
+            setIsSigned(true);
+        }
+    }, [initialDataURL]);
 
     const clear = () => {
         sigCanvas.current.clear();

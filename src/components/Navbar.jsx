@@ -2,6 +2,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { logout as firebaseLogout } from '@/services/auth';
 import { clearLocalDatabase } from '@/services/api/recommendations'; // Asumiendo que la función está aquí
 import { useNavigate, Link, useLocation } from 'react-router-dom';
+import toast from 'react-hot-toast';
 
 export function Navbar() {
     const { user, logout: authContextLogout } = useAuth(); // Usamos el logout del contexto
@@ -15,6 +16,7 @@ export function Navbar() {
             if (authContextLogout) authContextLogout();
             navigate('/login');
         } catch (error) {
+            toast.error('Error al cerrar sesión.');
             console.error('Error al cerrar sesión:', error);
         }
     };
