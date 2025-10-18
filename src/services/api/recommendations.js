@@ -65,7 +65,9 @@ export const getAllRecommendations = async (
   const offset = (page - 1) * pageSize;
 
   // Empezamos la consulta filtrando por usuario
-  let query = db.recommendations.where({ userId: userId });
+  let query = db.recommendations
+    .where({ userId: userId })
+    .and((rec) => rec.syncStatus !== "pending_deletion"); // Ocultamos las que están marcadas para borrar
 
   // Aplicamos los filtros adicionales si existen
   if (filters.status) {
@@ -164,7 +166,18 @@ export const updateRecommendation = async (localId, updates) => {
  * @returns {Promise<void>}
  */
 export const deleteRecommendation = async (localId) => {
-  return await db.recommendations.delete(localId);
+  const recommendation = await db.recommendations.get(localId);
+  if (recommendation) {
+    // Si la recomendación nunca fue subida a la nube, la podemos borrar directamente.
+    if (recommendation.syncStatus === "pending_creation") {
+      return await db.recommendations.delete(localId);
+    } else {
+      // Si ya estaba en la nube, la marcamos para que el sincronizador la borre.
+      return await db.recommendations.update(localId, {
+        syncStatus: "pending_deletion",
+      });
+    }
+  }
 };
 
 /**

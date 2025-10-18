@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { getRecommendationById, updateRecommendation } from '@/services/api/recommendations';
+import { compressImage } from '@/utils/imageCompressor';
+import { fileToBase64 } from '@/utils/fileUtils';
 import toast from 'react-hot-toast';
 
 
@@ -47,13 +49,6 @@ export function FollowUpPage() {
         fetchRecommendation();
     }, [id, setValue]);
 
-    const fileToBase64 = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-
     const onSubmit = async (data) => {
         try {
             const updates = {
@@ -66,8 +61,16 @@ export function FollowUpPage() {
 
             // Procesar la imagen "fotoDespues" si se ha añadido
             if (data.seguimiento.fotoDespues && data.seguimiento.fotoDespues.length > 0) {
-                const file = data.seguimiento.fotoDespues[0];
-                updates.seguimiento.fotoDespues = await fileToBase64(file);
+                const originalFile = data.seguimiento.fotoDespues[0];
+
+                // Visualización en consola (temporal)
+                console.log(`📸 Tamaño Original: ${(originalFile.size / 1024).toFixed(2)} KB`);
+
+                const compressedBlob = await compressImage(originalFile);
+                console.log(`✅ Tamaño Comprimido: ${(compressedBlob.size / 1024).toFixed(2)} KB`);
+
+                const base64Image = await fileToBase64(compressedBlob);
+                updates.seguimiento.fotoDespues = base64Image;
             }
 
             await updateRecommendation(Number(id), updates);

@@ -10,6 +10,8 @@ import { updateUserProfile } from '@/services/api/userProfiles';
 import { SignaturePad } from '@/components/SignaturePad';
 import { ProductAutocomplete } from '@/components/ProductAutocomplete';
 import { db } from '@/services/database/dexieConfig';
+import { compressImage } from '@/utils/imageCompressor';
+import { fileToBase64 } from '@/utils/fileUtils';
 
 // Datos geográficos de Ucayali
 const ucayaliData = {
@@ -87,20 +89,15 @@ export function RecommendationForm() {
         name: 'detallesProductos',
     });
 
-    // Helper para convertir un archivo a base64
-    const fileToBase64 = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-
     const onSubmit = async (data) => {
         try {
             // Solo procesa la imagen si es un archivo nuevo (objeto File)
             if (data.seguimiento.fotoAntes instanceof FileList && data.seguimiento.fotoAntes.length > 0) {
-                const file = data.seguimiento.fotoAntes[0];
-                const base64Image = await fileToBase64(file);
+                const originalFile = data.seguimiento.fotoAntes[0];
+                // Comprimimos la imagen antes de convertirla
+                const compressedBlob = await compressImage(originalFile);
+                // Convertimos el Blob comprimido a base64
+                const base64Image = await fileToBase64(compressedBlob);
                 data.seguimiento.fotoAntes = base64Image;
             }
 
@@ -291,7 +288,7 @@ export function RecommendationForm() {
                         <div className="flex items-center mb-4 sm:mb-0">
                             <div className="text-5xl mr-4">🌱</div>
                             <div>
-                                <h1 className="text-2xl font-bold text-shadow">{isEditMode ? 'EDITAR RECOMENDACIÓN' : 'AGRONEGOCIOS GRINGO'}</h1>
+                                <h1 className="text-2xl font-bold text-shadow">{isEditMode ? 'EDITAR RECOMENDACIÓN' : 'AGRO GRINGO - AGUAYTIA'}</h1>
                                 <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>
                             </div>
                         </div>
@@ -361,7 +358,7 @@ export function RecommendationForm() {
                                 {errors.datosAgricultor?.nombre && <p className="mt-1 text-sm text-red-600">{errors.datosAgricultor.nombre.message}</p>}
                             </div>
                             <div>
-                                <label htmlFor="agricultorDni" className="block text-sm font-medium text-gray-700">DNI</label>
+                                <label htmlFor="agricultorDni" className="block text-sm font-medium text-gray-700">DNI/RUC</label>
                                 <input
                                     id="agricultorDni"
                                     {...register('datosAgricultor.dni', { required: 'El DNI es obligatorio', maxLength: 8 })}
