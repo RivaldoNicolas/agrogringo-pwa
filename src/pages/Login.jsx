@@ -2,6 +2,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { login } from '@/services/auth';
+import toast from 'react-hot-toast';
 
 export function Login() {
     const {
@@ -10,20 +11,22 @@ export function Login() {
         formState: { errors },
     } = useForm();
     const navigate = useNavigate();
-    const [error, setError] = useState(null);
     const [loading, setLoading] = useState(false);
 
     const onSubmit = async (data) => {
         setLoading(true);
-        setError(null);
         try {
             await login(data.email, data.password);
-            // La navegación se manejará automáticamente por el cambio de estado en AuthContext
-            // pero podemos forzarla si es necesario.
+            toast.success('¡Bienvenido de vuelta!');
             navigate('/recommendations/new'); // Redirige a la página de creación
         } catch (err) {
-            setError('Credenciales incorrectas. Por favor, inténtalo de nuevo.');
             console.error(err);
+            // Verificamos si el error es por falta de conexión
+            if (err.code === 'auth/network-request-failed') {
+                toast.error('No hay conexión a internet. Por favor, conéctate para iniciar sesión.');
+            } else {
+                toast.error('Credenciales incorrectas. Por favor, inténtalo de nuevo.');
+            }
         } finally {
             setLoading(false);
         }
@@ -66,7 +69,6 @@ export function Login() {
                         />
                         {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
                     </div>
-                    {error && <p className="text-sm text-center text-red-600">{error}</p>}
                     <div>
                         <button
                             type="submit"

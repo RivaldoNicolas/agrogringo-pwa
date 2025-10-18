@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { addProduct, getAllProducts } from '@/services/api/products';
+import { addProduct, getAllProducts, deleteProduct } from '@/services/api/products';
+import toast from 'react-hot-toast';
 
 export function ProductManagementPage() {
     const [products, setProducts] = useState([]);
@@ -31,12 +32,28 @@ export function ProductManagementPage() {
         try {
             setError('');
             await addProduct(data);
+            toast.success(`Producto "${data.nombre}" guardado con éxito.`);
             reset();
             setIsFormVisible(false);
             await fetchProducts(); // Recargar la lista de productos
         } catch (err) {
+            toast.error(err.message || 'Error al guardar el producto.');
             setError(err.message);
             console.error(err);
+        }
+    };
+
+    const handleDelete = async (localId, productName) => {
+        if (window.confirm(`¿Estás seguro de que quieres eliminar el producto "${productName}"?`)) {
+            try {
+                await deleteProduct(localId);
+                toast.success(`Producto "${productName}" eliminado.`);
+                // Actualiza la UI filtrando el producto eliminado
+                setProducts(prevProducts => prevProducts.filter(p => p.localId !== localId));
+            } catch (error) {
+                toast.error('Error al eliminar el producto.');
+                console.error(error);
+            }
         }
     };
 
@@ -61,7 +78,7 @@ export function ProductManagementPage() {
                         {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre del Producto</label>
+                                <label htmlFor="nombre" className="block text-sm font-medium text-gray-700">Nombre</label>
                                 <input
                                     id="nombre"
                                     {...register('nombre', { required: 'El nombre es obligatorio' })}
@@ -70,19 +87,20 @@ export function ProductManagementPage() {
                                 {errors.nombre && <p className="mt-1 text-sm text-red-600">{errors.nombre.message}</p>}
                             </div>
                             <div>
-                                <label htmlFor="ingredienteActivo" className="block text-sm font-medium text-gray-700">Ingrediente Activo</label>
+                                <label htmlFor="cantidad" className="block text-sm font-medium text-gray-700">Cantidad (Recomendada)</label>
                                 <input
-                                    id="ingredienteActivo"
-                                    {...register('ingredienteActivo')}
+                                    id="cantidad"
+                                    {...register('cantidad')}
+                                    placeholder="Ej: 1 L, 500 gr"
                                     className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm"
                                 />
                             </div>
                             <div>
-                                <label htmlFor="tipo" className="block text-sm font-medium text-gray-700">Tipo</label>
+                                <label htmlFor="formaDeUso" className="block text-sm font-medium text-gray-700">Forma de Uso (Recomendada)</label>
                                 <input
-                                    id="tipo"
-                                    {...register('tipo')}
-                                    placeholder="Ej: Fungicida, Insecticida"
+                                    id="formaDeUso"
+                                    {...register('formaDeUso')}
+                                    placeholder="Ej: Foliar, al suelo"
                                     className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm"
                                 />
                             </div>
@@ -101,9 +119,10 @@ export function ProductManagementPage() {
                     <table className="w-full">
                         <thead className="bg-gray-100">
                             <tr>
-                                <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Nombre</th>
-                                <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Ingrediente Activo</th>
-                                <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Tipo</th>
+                                <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase w-1/2">Nombre</th>
+                                <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Cantidad Rec.</th>
+                                <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Forma de Uso Rec.</th>
+                                <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -111,8 +130,16 @@ export function ProductManagementPage() {
                                 products.map(product => (
                                     <tr key={product.localId} className="border-b hover:bg-gray-50">
                                         <td className="p-3 font-medium text-gray-800">{product.nombre}</td>
-                                        <td className="p-3 text-gray-600">{product.ingredienteActivo}</td>
-                                        <td className="p-3 text-gray-600">{product.tipo}</td>
+                                        <td className="p-3 text-gray-600">{product.cantidad}</td>
+                                        <td className="p-3 text-gray-600">{product.formaDeUso}</td>
+                                        <td className="p-3">
+                                            <button
+                                                onClick={() => handleDelete(product.localId, product.nombre)}
+                                                className="text-red-500 hover:text-red-700 font-semibold text-sm"
+                                            >
+                                                Eliminar
+                                            </button>
+                                        </td>
                                     </tr>
                                 ))
                             ) : (

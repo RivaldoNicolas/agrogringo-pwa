@@ -30,4 +30,32 @@ export const addProduct = async (productData) => {
 /**
  * Obtiene todos los productos de la base de datos local.
  */
-export const getAllProducts = () => db.products.orderBy("nombre").toArray();
+export const getAllProducts = () =>
+  db.products
+    .filter((product) => product.syncStatus !== "pending_deletion")
+    .sortBy("nombre");
+
+/**
+ * Elimina un producto de la base de datos local.
+ * @param {number} localId - El ID local del producto a eliminar.
+ * @returns {Promise<void>}
+ */
+export const deleteProduct = async (localId) => {
+  try {
+    const product = await db.products.get(localId);
+    if (product) {
+      // Si el producto nunca fue subido a la nube, lo podemos borrar directamente.
+      if (product.syncStatus === "pending_creation") {
+        return await db.products.delete(localId);
+      } else {
+        // Si ya estaba en la nube, lo marcamos para que el sincronizador lo borre.
+        return await db.products.update(localId, {
+          syncStatus: "pending_deletion",
+        });
+      }
+    }
+  } catch (error) {
+    console.error("Error al eliminar el producto localmente:", error);
+    throw error;
+  }
+};

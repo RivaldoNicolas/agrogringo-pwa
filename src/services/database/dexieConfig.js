@@ -2,25 +2,12 @@ import Dexie from "dexie";
 
 export const db = new Dexie("agrogringoDB");
 
-db.version(6).stores({
-  // Tabla para las recomendaciones
-  // Restauramos los índices con la sintaxis correcta.
-  recommendations: `
-    ++localId,
-    id,
-    noHoja,
-    fecha,
-    dniAgricultor,
-    estado,
-    syncStatus,
-    timestampUltimaModificacion
-  `,
-
-  // Tabla para el catálogo de productos (se sincronizará desde Firebase)
-  products: "++localId, id, &nombre, disponible",
-
-  // Tabla para el catálogo de clientes (se sincronizará desde Firebase)
-  clients: "++localId, id, &dni, nombre",
+db.version(11).stores({
+  recommendations:
+    "++localId, id, noHoja, fecha, [userId+fecha], dniAgricultor, estado, userId, syncStatus, timestampUltimaModificacion",
+  products: "++localId, id, &nombre, cantidad, formaDeUso",
+  clients: "++localId, &dni, nombre, signature",
+  userProfiles: "&userId, signature",
 });
 
 /**

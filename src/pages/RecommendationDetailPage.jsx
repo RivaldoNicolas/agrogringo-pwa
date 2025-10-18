@@ -65,7 +65,7 @@ export function RecommendationDetailPage() {
                         <div className="flex items-center mb-4 sm:mb-0">
                             <div className="text-5xl mr-4">🌱</div>
                             <div>
-                                <h1 className="text-2xl font-bold text-shadow">DETALLE DE RECOMENDACIÓN</h1>
+                                <h1 className="text-2xl font-bold text-shadow">AGRO GRINGO - AGUAYTIA</h1>
                                 <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>
                             </div>
                         </div>
@@ -144,11 +144,6 @@ export function RecommendationDetailPage() {
                             )}
                         </section>
                     )}
-
-                    {/* Productos Recomendados */}
-                    <section className="p-4 bg-gray-50 rounded-lg border">
-                        <h2 className="text-lg font-bold text-green-800 mb-3">📦 Productos Recomendados</h2>
-                    </section>
 
                     {/* Productos Recomendados */}
                     <section className="p-4 bg-gray-50 rounded-lg border">

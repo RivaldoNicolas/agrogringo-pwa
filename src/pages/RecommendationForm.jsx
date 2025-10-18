@@ -1,12 +1,17 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
-import { createRecommendation, getLastRecommendation } from '@/services/api/recommendations';
+import { createRecommendation, getLastRecommendation, getRecommendationById, updateRecommendation } from '@/services/api/recommendations';
 import { searchClients } from '@/services/api/clients';
 import { getAllProducts } from '@/services/api/products';
+import toast from 'react-hot-toast';
+import { updateUserProfile } from '@/services/api/userProfiles';
 import { SignaturePad } from '@/components/SignaturePad';
 import { ProductAutocomplete } from '@/components/ProductAutocomplete';
+import { db } from '@/services/database/dexieConfig';
+import { compressImage } from '@/utils/imageCompressor';
+import { fileToBase64 } from '@/utils/fileUtils';
 
 // Datos geográficos de Ucayali
 const ucayaliData = {
@@ -20,6 +25,9 @@ const ucayaliData = {
 
 export function RecommendationForm() {
     const navigate = useNavigate();
+    const { id } = useParams(); // Obtiene el ID de la URL si existe
+    const isEditMode = !!id; // True si hay un ID, false si no
+
     const { user } = useAuth();
     const [clientSearch, setClientSearch] = useState('');
     const [searchResults, setSearchResults] = useState([]);
@@ -81,33 +89,39 @@ export function RecommendationForm() {
         name: 'detallesProductos',
     });
 
-    // Helper para convertir un archivo a base64
-    const fileToBase64 = (file) => new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = error => reject(error);
-    });
-
     const onSubmit = async (data) => {
         try {
-            // Procesar la imagen "fotoAntes" si existe
-            if (data.seguimiento.fotoAntes && data.seguimiento.fotoAntes.length > 0) {
-                const file = data.seguimiento.fotoAntes[0];
-                const base64Image = await fileToBase64(file);
+            // Solo procesa la imagen si es un archivo nuevo (objeto File)
+            if (data.seguimiento.fotoAntes instanceof FileList && data.seguimiento.fotoAntes.length > 0) {
+                const originalFile = data.seguimiento.fotoAntes[0];
+                // Comprimimos la imagen antes de convertirla
+                const compressedBlob = await compressImage(originalFile);
+                // Convertimos el Blob comprimido a base64
+                const base64Image = await fileToBase64(compressedBlob);
                 data.seguimiento.fotoAntes = base64Image;
-            } else {
-                // Si no se seleccionó archivo, asegúrate de que sea null
-                data.seguimiento.fotoAntes = null;
             }
 
-            // Guardar la recomendación con la imagen ya convertida
-            await createRecommendation(data);
+            if (isEditMode) {
+                // Lógica de Actualización
+                // Quitamos datos que no deben actualizarse directamente
+                const { noHoja, ...updateData } = data;
+                await updateRecommendation(Number(id), updateData);
+                toast.success('Recomendación actualizada con éxito!');
+                navigate('/');
+            } else {
+                // Lógica de Creación
+                if (!data.seguimiento.fotoAntes) {
+                    // Si no se seleccionó archivo, asegúrate de que sea null
+                    data.seguimiento.fotoAntes = null;
+                }
+                // Guardar la recomendación con la imagen ya convertida
+                await createRecommendation(data, user.uid);
 
-            alert('Recomendación guardada localmente con éxito!');
-            navigate('/'); // Volver a la lista
+                toast.success('Recomendación guardada con éxito!');
+                navigate('/'); // Volver a la lista
+            }
         } catch (error) {
-            alert('Hubo un error al guardar la recomendación.');
+            toast.error('Hubo un error al guardar la recomendación.');
             console.error(error);
         }
     };
@@ -140,29 +154,61 @@ export function RecommendationForm() {
 
     // Efecto para obtener el siguiente número de hoja automáticamente
     useEffect(() => {
-        const getNextSheetNumber = async () => {
-            setIsFetchingNextSheet(true);
-            try {
-                const lastRecommendation = await getLastRecommendation();
-                let nextNumber = 1;
-                if (lastRecommendation) {
-                    // Usamos el número de la última recomendación para calcular el siguiente
-                    const lastNumber = parseInt(lastRecommendation.noHoja, 10);
-                    if (!isNaN(lastNumber)) {
-                        nextNumber = lastNumber + 1;
+        const loadFormData = async () => {
+            if (isEditMode) {
+                // MODO EDICIÓN: Cargar datos de la recomendación existente
+                try {
+                    const recommendationData = await getRecommendationById(Number(id));
+                    if (recommendationData) {
+                        // Usamos reset para poblar todo el formulario con los datos cargados
+                        // Si no hay firma de técnico en los datos guardados, intentamos cargar la del perfil
+                        if (!recommendationData.firmaTecnico && user) {
+                            const userProfile = await db.userProfiles.get(user.uid);
+                            if (userProfile?.signature) {
+                                recommendationData.firmaTecnico = userProfile.signature;
+                            }
+                        }
+                        reset(recommendationData);
+                    } else {
+                        toast.error("No se encontró la recomendación para editar.");
+                        navigate('/');
                     }
+                } catch (error) {
+                    toast.error("Error al cargar la recomendación.");
+                    navigate('/');
                 }
-                // Formateamos el número a 3 dígitos (e.g., 1 -> "001", 12 -> "012")
-                setValue('noHoja', nextNumber.toString().padStart(3, '0'));
-            } catch (error) {
-                console.error("Error fetching next sheet number:", error);
-                setValue('noHoja', '001'); // Fallback en caso de error
-            } finally {
-                setIsFetchingNextSheet(false);
+            } else {
+                // MODO CREACIÓN: Obtener el siguiente número de hoja
+                if (!user) return;
+                setIsFetchingNextSheet(true);
+                // Cargar la firma por defecto del técnico
+                const userProfile = await db.userProfiles.get(user.uid);
+                if (userProfile?.signature) {
+                    setValue('firmaTecnico', userProfile.signature);
+                }
+
+                try {
+                    const lastRecommendation = await getLastRecommendation(user.uid);
+                    let nextNumber = 1;
+                    if (lastRecommendation && lastRecommendation.noHoja) {
+                        const lastNumber = parseInt(lastRecommendation.noHoja, 10);
+                        if (!isNaN(lastNumber)) {
+                            nextNumber = lastNumber + 1;
+                        }
+                    }
+                    setValue('noHoja', nextNumber.toString().padStart(3, '0'));
+                } catch (error) {
+                    console.error("Error fetching next sheet number:", error);
+                    setValue('noHoja', '001'); // Fallback
+                } finally {
+                    setIsFetchingNextSheet(false);
+                }
             }
         };
-        getNextSheetNumber();
-    }, [setValue]);
+
+        loadFormData();
+
+    }, [id, isEditMode, user, navigate, reset, setValue]);
 
     // Efecto para cargar la lista de productos para el autocompletado
     useEffect(() => {
@@ -193,25 +239,60 @@ export function RecommendationForm() {
         setValue('datosAgricultor.provincia', client.provincia || '');
         setValue('datosAgricultor.distrito', client.distrito || '');
         setValue('datosAgricultor.adelanto', client.adelanto || 0);
+        // ¡Aquí está la magia! Si el cliente tiene una firma guardada, la cargamos.
+        if (client.signature) {
+            setValue('firmaAgricultor', client.signature);
+        }
         // Limpiamos la búsqueda
         setClientSearch('');
         setSearchResults([]);
     };
 
+    const handleProductSelect = (product, index) => {
+        // Cuando un producto es seleccionado del autocompletado,
+        // rellenamos los campos correspondientes.
+        setValue(`detallesProductos.${index}.producto`, product.nombre);
+        // Usamos la cantidad del catálogo o 1 si no está definida.
+        setValue(`detallesProductos.${index}.cantidad`, parseFloat(product.cantidad) || 1);
+        setValue(`detallesProductos.${index}.formaUso`, product.formaDeUso || '');
+    };
+
+    const handleSaveTechnicianSignature = async () => {
+        const signature = watch('firmaTecnico');
+        if (!signature) {
+            toast.error('No hay firma para guardar.');
+            return;
+        }
+        if (!user) {
+            toast.error('No se pudo identificar al usuario.');
+            return;
+        }
+
+        try {
+            await updateUserProfile(user.uid, { signature });
+            toast.success('Firma guardada como predeterminada.');
+        } catch (error) {
+            toast.error('Error al guardar la firma.');
+        }
+    };
+
+    // Función para añadir una nueva fila de producto con valores por defecto
+    const addProductRow = () => append({ producto: '', cantidad: 1, formaUso: '' });
+
     return (
-        <div className="max-w-4xl p-4 mx-auto">
-            <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+        <div className="bg-gray-100 min-h-full">
+            <div className="max-w-4xl mx-auto p-2 sm:p-4">
                 {/* HEADER */}
-                <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-6">
-                    <div className="flex flex-col sm:flex-row justify-between items-center">
+                <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-4 sm:p-6 rounded-t-xl shadow-lg">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
                         <div className="flex items-center mb-4 sm:mb-0">
                             <div className="text-5xl mr-4">🌱</div>
                             <div>
-                                <h1 className="text-2xl font-bold text-shadow">AGRONEGOCIOS GRINGO</h1>
+                                <h1 className="text-2xl font-bold text-shadow">{isEditMode ? 'EDITAR RECOMENDACIÓN' : 'AGRO GRINGO - AGUAYTIA'}</h1>
                                 <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>
                             </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right w-full sm:w-auto">
                             <div className="font-bold text-lg">📞 992 431 355</div>
                             <div className="bg-white/25 px-3 py-1 rounded-full text-sm font-bold mt-1">
                                 {isFetchingNextSheet ? (
@@ -222,7 +303,7 @@ export function RecommendationForm() {
                                         placeholder="N° 001"
                                         {...register('noHoja', { required: 'El N° de hoja es obligatorio' })}
                                         className="bg-transparent text-white placeholder-white/70 text-center outline-none w-28"
-                                        readOnly
+                                        readOnly // El número de hoja no se debe cambiar
                                     />
                                 )}
                             </div>
@@ -232,8 +313,8 @@ export function RecommendationForm() {
                 </div>
 
                 {/* SEARCH SECTION */}
-                <div className="bg-gray-50 p-6 border-b flex justify-between items-center">
-                    <div className="relative flex-grow mr-4">
+                <div className="bg-white p-4 sm:p-6 shadow-lg">
+                    <div className="relative flex-grow">
                         <h3 className="text-lg font-bold text-gray-700 mb-3">🔍 Búsqueda Rápida de Cliente</h3>
                         <label htmlFor="clientSearch" className="block text-sm font-medium text-gray-700 sr-only">Buscar Cliente por DNI o Nombre</label>
                         <input
@@ -260,17 +341,11 @@ export function RecommendationForm() {
                             </ul>
                         )}
                     </div>
-                    <Link
-                        to="/"
-                        className="self-end mb-1 whitespace-nowrap px-4 py-3 font-medium text-white rounded-md bg-primary-600 hover:bg-primary-700"
-                    >
-                        Ver Lista
-                    </Link>
                 </div>
 
-                <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-8">
+                <form onSubmit={handleSubmit(onSubmit)} className="p-2 sm:p-6 space-y-6 bg-gray-100 rounded-b-xl">
                     {/* Datos del Agricultor */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">👨‍🌾 Datos del Agricultor</h2>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div className="md:col-span-2">
@@ -283,7 +358,7 @@ export function RecommendationForm() {
                                 {errors.datosAgricultor?.nombre && <p className="mt-1 text-sm text-red-600">{errors.datosAgricultor.nombre.message}</p>}
                             </div>
                             <div>
-                                <label htmlFor="agricultorDni" className="block text-sm font-medium text-gray-700">DNI</label>
+                                <label htmlFor="agricultorDni" className="block text-sm font-medium text-gray-700">DNI/RUC</label>
                                 <input
                                     id="agricultorDni"
                                     {...register('datosAgricultor.dni', { required: 'El DNI es obligatorio', maxLength: 8 })}
@@ -330,7 +405,7 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Datos de la Hoja y Técnico */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">🧑‍🔬 Representante Técnico</h2>
                         <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                             <div>
@@ -353,7 +428,7 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Diagnóstico */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">🔬 Diagnóstico en Cultivo</h2>
                         <textarea
                             {...register('diagnostico', { required: 'El diagnóstico es obligatorio' })}
@@ -370,18 +445,19 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Detalles de Productos */}
-                    <section className="p-0 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow overflow-hidden">
-                        <div className="bg-green-800 text-white p-4 flex justify-between items-center">
+                    <section className="bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <div className="bg-green-800 text-white p-4 flex justify-between items-center rounded-t-lg">
                             <h2 className="text-lg font-bold flex items-center gap-2">📦 Productos Recomendados</h2>
                             <button
                                 type="button"
-                                onClick={() => append({ producto: '', cantidad: 1, formaUso: '' })}
+                                onClick={addProductRow}
                                 className="bg-white text-green-800 font-bold py-1 px-3 rounded-full text-sm hover:bg-green-100 transition"
                             >
                                 + Agregar
                             </button>
                         </div>
-                        <table className="w-full">
+                        {/* --- VISTA DE TABLA PARA ESCRITORIO --- */}
+                        <table className="w-full hidden md:table">
                             <thead className="bg-gray-100">
                                 <tr>
                                     <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-2/5">Producto</th>
@@ -392,7 +468,7 @@ export function RecommendationForm() {
                             </thead>
                             <tbody>
                                 {fields.map((field, index) => (
-                                    <tr key={field.id} className="border-b last:border-0">
+                                    <tr key={field.id} className="border-b last:border-0 align-top">
                                         <td className="p-2">
                                             {/* Usamos Controller para integrar el componente de autocompletado */}
                                             <Controller
@@ -400,28 +476,44 @@ export function RecommendationForm() {
                                                 control={control}
                                                 rules={{ required: 'El producto es obligatorio' }}
                                                 render={({ field }) => (
+                                                    // Pasamos una función onSelect para manejar el autocompletado
                                                     <ProductAutocomplete
                                                         products={productList}
-                                                        {...field} // Pasa value, onChange, onBlur
+                                                        value={field.value}
+                                                        onChange={(value) => field.onChange(value)}
+                                                        onSelect={(product) => handleProductSelect(product, index)}
                                                     />
                                                 )}
                                             />
                                             {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
                                         </td>
                                         <td className="p-2">
-                                            <input
-                                                type="number"
-                                                step="0.1"
-                                                {...register(`detallesProductos.${index}.cantidad`, { required: true, valueAsNumber: true, min: { value: 0.1, message: 'Debe ser > 0' } })}
-                                                className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                            <Controller
+                                                name={`detallesProductos.${index}.cantidad`}
+                                                control={control}
+                                                rules={{ required: 'Cantidad requerida', valueAsNumber: true, min: { value: 0.01, message: 'Debe ser > 0' } }}
+                                                render={({ field }) => (
+                                                    <input
+                                                        type="number"
+                                                        step="any" // Permite decimales
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                    />
+                                                )}
                                             />
                                             {errors.detallesProductos?.[index]?.cantidad && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>}
                                         </td>
                                         <td className="p-2">
-                                            <input
-                                                {...register(`detallesProductos.${index}.formaUso`)}
-                                                className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                                placeholder="Instrucciones"
+                                            <Controller
+                                                name={`detallesProductos.${index}.formaUso`}
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <input
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                        placeholder="Instrucciones"
+                                                    />
+                                                )}
                                             />
                                         </td>
                                         <td className="p-2 text-center">
@@ -433,10 +525,69 @@ export function RecommendationForm() {
                                 ))}
                             </tbody>
                         </table>
+                        {/* --- VISTA DE TARJETAS PARA MÓVIL --- */}
+                        <div className="md:hidden p-2 space-y-3 bg-gray-50">
+                            {fields.map((field, index) => (
+                                <div key={field.id} className="p-3 border rounded-lg bg-white shadow-sm relative">
+                                    <p className="font-bold text-sm text-gray-800 mb-2">Producto #{index + 1}</p>
+                                    <div className="space-y-3">
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Nombre</label>
+                                            <Controller
+                                                name={`detallesProductos.${index}.producto`}
+                                                control={control}
+                                                rules={{ required: 'El producto es obligatorio' }}
+                                                render={({ field }) => (
+                                                    <ProductAutocomplete
+                                                        products={productList}
+                                                        value={field.value}
+                                                        onChange={(value) => field.onChange(value)}
+                                                        onSelect={(product) => handleProductSelect(product, index)}
+                                                    />
+                                                )}
+                                            />
+                                            {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Cantidad</label>
+                                            <Controller
+                                                name={`detallesProductos.${index}.cantidad`}
+                                                control={control}
+                                                rules={{ required: 'Cantidad requerida', valueAsNumber: true, min: { value: 0.01, message: 'Debe ser > 0' } }}
+                                                render={({ field }) => (
+                                                    <input
+                                                        type="number"
+                                                        step="any"
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                    />
+                                                )}
+                                            />
+                                            {errors.detallesProductos?.[index]?.cantidad && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>}
+                                        </div>
+                                        <div>
+                                            <label className="text-xs font-medium text-gray-600">Forma de Uso</label>
+                                            <Controller
+                                                name={`detallesProductos.${index}.formaUso`}
+                                                control={control}
+                                                render={({ field }) => (
+                                                    <input
+                                                        {...field}
+                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                        placeholder="Instrucciones"
+                                                    />
+                                                )}
+                                            />
+                                        </div>
+                                    </div>
+                                    <button type="button" onClick={() => remove(index)} className="absolute top-2 right-2 text-red-500 hover:text-red-700 font-bold text-2xl leading-none">&times;</button>
+                                </div>
+                            ))}
+                        </div>
                     </section>
 
                     {/* Recomendaciones de Seguridad */}
-                    <section className="p-6 bg-green-50 rounded-xl border-2 border-green-200">
+                    <section className="bg-green-50 p-4 sm:p-6 rounded-xl border-2 border-green-200">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">💡 Recomendaciones de Seguridad</h2>
                         <div className="space-y-4">
                             <ul className="space-y-2 list-disc list-inside text-gray-700">
@@ -463,7 +614,7 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Seguimiento Inicial y Firmas */}
-                    <section className="p-6 bg-gray-50 rounded-xl border-l-4 border-green-600 hover:shadow-md transition-shadow">
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
                         <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">✍️ Evidencia y Firmas</h2>
                         <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
                             <div>
@@ -478,6 +629,7 @@ export function RecommendationForm() {
                                     <SignaturePad
                                         title="Firma del Agricultor"
                                         // Aseguramos que solo se guarde la URL de la imagen
+                                        initialDataURL={watch('firmaAgricultor')}
                                         onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
                                     />
                                 )}
@@ -487,27 +639,39 @@ export function RecommendationForm() {
                                 name="firmaTecnico"
                                 control={control}
                                 render={({ field }) => (
-                                    <SignaturePad
-                                        title="Firma del Técnico"
-                                        onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
-                                    />
+                                    // Agrupamos el pad y el botón para que JSX sea válido
+                                    <div>
+                                        <SignaturePad
+                                            title="Firma del Técnico"
+                                            initialDataURL={watch('firmaTecnico')}
+                                            onEnd={(signatureDataUrl) => field.onChange(signatureDataUrl)}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveTechnicianSignature}
+                                            className="w-full mt-2 text-xs bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded"
+                                        >
+                                            Guardar como firma predeterminada
+                                        </button>
+                                    </div>
                                 )}
                             />
                         </div>
                     </section>
 
                     {/* Botón de Guardar */}
-                    <div className="flex justify-end">
+                    <div className="flex justify-center sm:justify-end pt-4">
                         <button
                             type="submit"
                             disabled={isSubmitting}
-                            className="btn btn-save flex items-center justify-center gap-2 px-8 py-3 text-lg font-bold text-white rounded-lg bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:bg-gray-400 disabled:shadow-none disabled:transform-none"
+                            className="w-full sm:w-auto btn btn-save flex items-center justify-center gap-2 px-8 py-3 text-lg font-bold text-white rounded-lg bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all disabled:bg-gray-400 disabled:shadow-none disabled:transform-none"
                         >
                             💾
                             <span>{isSubmitting ? 'Guardando...' : 'Guardar Hoja'}</span>
                         </button>
                     </div>
-                </form></div>
+                </form>
+            </div>
         </div>
     );
 }

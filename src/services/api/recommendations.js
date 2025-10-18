@@ -1,4 +1,5 @@
 import { db } from "@/services/database/dexieConfig";
+import Dexie from "dexie";
 import { v4 as uuidv4 } from "uuid"; // Necesitarás instalar uuid: npm install uuid
 import { putClient } from "./clients";
 
@@ -8,12 +9,13 @@ import { putClient } from "./clients";
  * @param {object} recommendationData - Los datos del formulario.
  * @returns {Promise<number>} El ID local del nuevo registro en Dexie.
  */
-export const createRecommendation = async (recommendationData) => {
+export const createRecommendation = async (recommendationData, userId) => {
   try {
     const newRecommendation = {
       ...recommendationData, // Datos del formulario
       id: uuidv4(), // Genera un ID único universal
       dniAgricultor: recommendationData.datosAgricultor?.dni || "",
+      userId: userId,
       emailTecnico: recommendationData.datosTecnico?.email || "",
       fecha: new Date(), // Sello de tiempo de creación
       syncStatus: "pending_creation", // Marca para sincronización
@@ -25,7 +27,12 @@ export const createRecommendation = async (recommendationData) => {
 
     // Guardar/Actualizar el cliente en su propia tabla para futuras búsquedas
     if (recommendationData.datosAgricultor?.dni) {
-      await putClient(recommendationData.datosAgricultor);
+      const clientData = { ...recommendationData.datosAgricultor };
+      // Si hay una firma, la añadimos al perfil del cliente.
+      if (recommendationData.firmaAgricultor) {
+        clientData.signature = recommendationData.firmaAgricultor;
+      }
+      await putClient(clientData);
     }
 
     console.log("Recomendación guardada localmente con ID:", localId);
@@ -38,21 +45,68 @@ export const createRecommendation = async (recommendationData) => {
 
 /**
  * Obtiene todas las recomendaciones de la base de datos local.
- * @returns {Promise<Array<object>>} Un array con las recomendaciones.
+ * Implementa paginación para un rendimiento óptimo con grandes volúmenes de datos.
+ * @param {string} userId - El ID del usuario.
+ * @param {number} [page=1] - El número de página a obtener.
+ * @param {number} [pageSize=15] - El número de elementos por página.
+ * @param {object} [filters={}] - Objeto con filtros a aplicar.
+ * @returns {Promise<{data: Array<object>, total: number}>} Un objeto con las recomendaciones y el conteo total.
  */
-export const getAllRecommendations = async () => {
-  // Ordenamos por fecha descendente usando el índice 'fecha'.
-  return await db.recommendations.orderBy("fecha").reverse().toArray();
+export const getAllRecommendations = async (
+  userId,
+  page = 1,
+  pageSize = 15,
+  filters = {}
+) => {
+  if (!userId || typeof userId !== "string") {
+    return { data: [], total: 0 };
+  }
+
+  const offset = (page - 1) * pageSize;
+
+  // Empezamos la consulta filtrando por usuario
+  let query = db.recommendations
+    .where({ userId: userId })
+    .and((rec) => rec.syncStatus !== "pending_deletion"); // Ocultamos las que están marcadas para borrar
+
+  // Aplicamos los filtros adicionales si existen
+  if (filters.status) {
+    query = query.and((rec) => rec.estado === filters.status);
+  }
+  if (filters.dateFrom) {
+    query = query.and((rec) => rec.fecha >= new Date(filters.dateFrom));
+  }
+  if (filters.dateTo) {
+    // Añadimos un día para incluir todo el día de la fecha "hasta"
+    const dateTo = new Date(filters.dateTo);
+    dateTo.setDate(dateTo.getDate() + 1);
+    query = query.and((rec) => rec.fecha < dateTo);
+  }
+  if (filters.client) {
+    const lowerCaseFilter = filters.client.toLowerCase();
+    query = query.and(
+      (rec) =>
+        rec.datosAgricultor.nombre.toLowerCase().includes(lowerCaseFilter) ||
+        rec.datosAgricultor.dni.includes(lowerCaseFilter)
+    );
+  }
+
+  const total = await query.count();
+  const data = await query.reverse().offset(offset).limit(pageSize).toArray();
+
+  return { data, total };
 };
 
 /**
- * Obtiene la última recomendación registrada en la base de datos local.
+ * Obtiene la última recomendación registrada para un usuario específico.
+ * Esta función está ahora altamente optimizada.
+ * @param {string} userId - El ID del usuario.
  * @returns {Promise<object|undefined>} La última recomendación o undefined si no hay ninguna.
  */
-export const getLastRecommendation = async () => {
-  // .orderBy('fecha').last() es la forma más eficiente de obtener el último registro.
-  // No necesitamos traer toda la colección a memoria.
-  return await db.recommendations.orderBy("fecha").last();
+export const getLastRecommendation = async (userId) => {
+  // Usamos el índice [userId+fecha] y el método .last() de Dexie para obtener
+  // el último registro de forma súper eficiente, sin cargar toda la tabla.
+  return await db.recommendations.where({ userId: userId }).last();
 };
 
 /**
@@ -89,10 +143,40 @@ export const updateRecommendation = async (localId, updates) => {
           : recommendation.syncStatus,
     };
 
+    // Al actualizar, también actualizamos el perfil del cliente con la firma más reciente si existe
+    if (updates.datosAgricultor?.dni) {
+      const clientData = { ...updates.datosAgricultor };
+      // Si hay una firma en la actualización, la guardamos en el perfil del cliente.
+      if (updates.firmaAgricultor) {
+        clientData.signature = updates.firmaAgricultor;
+      }
+      await putClient(clientData);
+    }
+
     return await db.recommendations.update(localId, dataToUpdate);
   } catch (error) {
     console.error("Error al actualizar la recomendación localmente:", error);
     throw error;
+  }
+};
+
+/**
+ * Elimina una recomendación de la base de datos local.
+ * @param {number} localId - El ID local del registro en Dexie.
+ * @returns {Promise<void>}
+ */
+export const deleteRecommendation = async (localId) => {
+  const recommendation = await db.recommendations.get(localId);
+  if (recommendation) {
+    // Si la recomendación nunca fue subida a la nube, la podemos borrar directamente.
+    if (recommendation.syncStatus === "pending_creation") {
+      return await db.recommendations.delete(localId);
+    } else {
+      // Si ya estaba en la nube, la marcamos para que el sincronizador la borre.
+      return await db.recommendations.update(localId, {
+        syncStatus: "pending_deletion",
+      });
+    }
   }
 };
 

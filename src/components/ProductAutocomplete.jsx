@@ -5,9 +5,10 @@ import { useState, useEffect } from 'react';
  * @param {object} props
  * @param {Array} props.products - La lista completa de productos disponibles.
  * @param {string} props.value - El valor actual del input.
- * @param {function} props.onChange - Función que se llama cuando el valor cambia o se selecciona una sugerencia.
+ * @param {function} props.onChange - Función que se llama cuando el valor del input cambia.
+ * @param {function} props.onSelect - Función que se llama cuando se selecciona una sugerencia (devuelve el objeto producto completo).
  */
-export function ProductAutocomplete({ products, value, onChange }) {
+export function ProductAutocomplete({ products, value, onChange, onSelect }) {
     const [inputValue, setInputValue] = useState(value || '');
     const [suggestions, setSuggestions] = useState([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
@@ -19,7 +20,7 @@ export function ProductAutocomplete({ products, value, onChange }) {
     const handleInputChange = (e) => {
         const query = e.target.value;
         setInputValue(query);
-        onChange(query); // Actualiza el valor en react-hook-form
+        onChange(query); // Mantenemos el formulario sincronizado mientras se escribe
 
         if (query.length > 1) {
             // Búsqueda más precisa: prioriza los que empiezan con la consulta
@@ -37,9 +38,10 @@ export function ProductAutocomplete({ products, value, onChange }) {
         }
     };
 
-    const handleSelectSuggestion = (productName) => {
-        setInputValue(productName);
-        onChange(productName); // Actualiza el valor en react-hook-form
+    const handleSelectSuggestion = (product) => {
+        setInputValue(product.nombre);
+        onChange(product.nombre); // Actualiza el valor del nombre en react-hook-form
+        if (onSelect) onSelect(product); // Llama a la función onSelect con el objeto completo
         setSuggestions([]);
         setShowSuggestions(false);
     };
@@ -61,7 +63,7 @@ export function ProductAutocomplete({ products, value, onChange }) {
                         suggestions.map((product) => (
                             <li
                                 key={product.localId}
-                                onMouseDown={() => handleSelectSuggestion(product.nombre)} // Usamos onMouseDown para que se dispare antes del onBlur del input
+                                onMouseDown={() => handleSelectSuggestion(product)} // Usamos onMouseDown para que se dispare antes del onBlur del input
                                 className="px-4 py-2 cursor-pointer hover:bg-green-50"
                             >{product.nombre}</li>
                         ))
