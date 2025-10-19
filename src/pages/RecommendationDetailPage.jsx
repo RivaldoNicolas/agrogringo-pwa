@@ -42,6 +42,7 @@ export function RecommendationDetailPage() {
         estado, // Añadimos el estado
         datosAgricultor,
         datosTecnico,
+        cultivo, // Añadimos el cultivo
         diagnostico,
         detallesProductos,
         recomendaciones,
@@ -73,7 +74,7 @@ export function RecommendationDetailPage() {
                             <div className="bg-white/25 px-4 py-2 rounded-lg text-lg font-bold mt-1">
                                 N° {noHoja}
                             </div>
-                            <p className="mt-2 text-sm">Fecha: {new Date(fecha).toLocaleDateString()}</p>
+                            <p className="mt-2 text-sm">Fecha: {new Date(fecha).toLocaleString()}</p>
                             <div className={`mt-2 inline-block px-3 py-1 text-sm font-bold rounded-full ${estadoStyles[estado] || 'bg-gray-100 text-gray-800'}`}>
                                 {estado}
                             </div>
@@ -87,7 +88,8 @@ export function RecommendationDetailPage() {
                         <h2 className="text-lg font-bold text-green-800 mb-3">👨‍🌾 Datos del Agricultor</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2 text-sm">
                             <p><strong>Nombre:</strong> {datosAgricultor.nombre}</p>
-                            <p><strong>DNI:</strong> {datosAgricultor.dni}</p>
+                            <p><strong>DNI/RUC:</strong> {datosAgricultor.dni}</p>
+                            <p><strong>Celular:</strong> {datosAgricultor.celular || 'N/A'}</p>
                             <p className="md:col-span-2"><strong>Dirección:</strong> {datosAgricultor.direccion}</p>
                             <p><strong>Provincia:</strong> {datosAgricultor.provincia}</p>
                             <p><strong>Distrito:</strong> {datosAgricultor.distrito}</p>
@@ -109,6 +111,7 @@ export function RecommendationDetailPage() {
                     {/* Diagnóstico */}
                     <section className="p-4 bg-gray-50 rounded-lg border">
                         <h2 className="text-lg font-bold text-green-800 mb-3">🔬 Diagnóstico en Cultivo</h2>
+                        <p className="text-sm mb-2"><strong>Cultivo de:</strong> {cultivo || 'No especificado'}</p>
                         <p className="text-sm whitespace-pre-wrap">{diagnostico}</p>
                         {seguimiento?.fotoAntes && (
                             <div className="mt-4">
@@ -172,7 +175,7 @@ export function RecommendationDetailPage() {
 
                     {/* Recomendaciones de Seguridad */}
                     <section className="p-4 bg-green-50 rounded-lg border-green-200 border">
-                        <h2 className="text-lg font-bold text-green-800 mb-3">💡 Recomendaciones de Seguridad</h2>
+                        <h2 className="text-lg font-bold text-green-800 mb-3">💡 Recomendación</h2>
                         <ul className="space-y-1 list-disc list-inside text-sm">
                             {recomendaciones.filter(r => r).map((rec, index) => (
                                 <li key={index}>{rec}</li>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useForm, useFieldArray, Controller, get } from 'react-hook-form';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { createRecommendation, getLastRecommendation, getRecommendationById, updateRecommendation } from '@/services/api/recommendations';
@@ -22,6 +22,10 @@ const ucayaliData = {
         { name: 'Purús', districts: ['Purús'] }
     ]
 };
+
+// Datos para los nuevos campos
+const cultivos = ['Cocona', 'Papaya', 'Maíz', 'Maní', 'Cacao', 'Camu Camu', 'Ají', 'Otros'];
+const tiposRecomendacion = ['Análisis de suelo', 'Aplicaciones', 'Control Fitosanitario', 'Enmienda', 'Manejo de Arvences', 'Fertilización', 'Labores culturales'];
 
 export function RecommendationForm() {
     const navigate = useNavigate();
@@ -50,6 +54,7 @@ export function RecommendationForm() {
             datosAgricultor: {
                 nombre: '',
                 dni: '',
+                celular: '',
                 direccion: '',
                 adelanto: 0,
                 distrito: '', // Se convertirá en un select
@@ -62,14 +67,10 @@ export function RecommendationForm() {
                 cip: '',
                 telefono: '',
             },
+            cultivo: '',
             diagnostico: '',
             detallesProductos: [{ producto: '', cantidad: 1, formaUso: '' }],
-            recomendaciones: [
-                'Almacenar los productos químicos en lugar seguro, alejado del hogar y familia.',
-                'Para preparar y aplicar los plaguicidas, utilizar los implementos de seguridad (EPP).',
-                'Después de utilizar, hacer el triple lavado, hacerle hueco y almacenar en el acopio de la chacra para su disposición final.',
-                '' // El cuarto queda libre
-            ],
+            recomendaciones: [], // Ahora será un array de strings seleccionados
             seguimiento: {
                 fotoAntes: null,
                 fotoDespues: null,
@@ -234,6 +235,7 @@ export function RecommendationForm() {
         // Usamos setValue para rellenar todos los campos del agricultor de forma segura
         setValue('datosAgricultor.nombre', client.nombre || '');
         setValue('datosAgricultor.dni', client.dni || '');
+        setValue('datosAgricultor.celular', client.celular || '');
         setValue('datosAgricultor.direccion', client.direccion || '');
         setValue('datosAgricultor.departamento', client.departamento || 'Ucayali');
         setValue('datosAgricultor.provincia', client.provincia || '');
@@ -353,6 +355,7 @@ export function RecommendationForm() {
                                 <input
                                     id="agricultorNombre"
                                     {...register('datosAgricultor.nombre', { required: 'El nombre es obligatorio' })}
+                                    placeholder="Nombre completo o Razón Social"
                                     className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
                                 />
                                 {errors.datosAgricultor?.nombre && <p className="mt-1 text-sm text-red-600">{errors.datosAgricultor.nombre.message}</p>}
@@ -360,18 +363,34 @@ export function RecommendationForm() {
                             <div>
                                 <label htmlFor="agricultorDni" className="block text-sm font-medium text-gray-700">DNI/RUC</label>
                                 <input
+                                    type="tel"
                                     id="agricultorDni"
-                                    {...register('datosAgricultor.dni', { required: 'El DNI es obligatorio', maxLength: 8 })}
+                                    {...register('datosAgricultor.dni', { required: 'El DNI/RUC es obligatorio', minLength: { value: 8, message: 'El DNI/RUC debe tener 8 u 11 dígitos' }, maxLength: { value: 11, message: 'El DNI/RUC debe tener 8 u 11 dígitos' } })}
+                                    maxLength="11"
                                     className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                    placeholder="DNI o RUC"
                                 />
-                                {errors.datosAgricultor?.dni && <p className="mt-1 text-sm text-red-600">{errors.datosAgricultor.dni.message}</p>}
+                                {errors.datosAgricultor?.dni && <p className="mt-1 text-xs text-red-600">{errors.datosAgricultor.dni.message}</p>}
                             </div>
-                            <div className="md:col-span-3">
+                            <div className="md:col-span-2">
                                 <label htmlFor="agricultorDireccion" className="block text-sm font-medium text-gray-700">Dirección</label>
                                 <input
                                     id="agricultorDireccion"
                                     {...register('datosAgricultor.direccion')}
                                     className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                />
+                            </div>
+                            <div>
+                                <label htmlFor="agricultorCelular" className="block text-sm font-medium text-gray-700">Celular</label>
+                                <input
+                                    type="tel"
+                                    id="agricultorCelular"
+                                    maxLength="9"
+                                    {...register('datosAgricultor.celular', {
+                                        pattern: { value: /^[0-9]{9}$/, message: 'El celular debe tener 9 dígitos' }
+                                    })}
+                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                    placeholder="987654321"
                                 />
                             </div>
                             <div>
@@ -422,20 +441,46 @@ export function RecommendationForm() {
                             </div>
                             <div>
                                 <label htmlFor="tecnicoTelefono" className="block text-sm font-medium text-gray-700">Teléfono</label>
-                                <input id="tecnicoTelefono" {...register('datosTecnico.telefono')} className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500" />
+                                <input
+                                    type="tel"
+                                    id="tecnicoTelefono"
+                                    maxLength="9"
+                                    {...register('datosTecnico.telefono', {
+                                        pattern: { value: /^[0-9]{9}$/, message: 'El teléfono debe tener 9 dígitos' }
+                                    })}
+                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                />
+                                {errors.datosTecnico?.telefono && <p className="mt-1 text-xs text-red-600">{errors.datosTecnico.telefono.message}</p>}
                             </div>
                         </div>
                     </section>
 
                     {/* Diagnóstico */}
                     <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
-                        <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">🔬 Diagnóstico en Cultivo</h2>
-                        <textarea
-                            {...register('diagnostico', { required: 'El diagnóstico es obligatorio' })}
-                            rows="4"
-                            className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                            placeholder="Describe el problema, plaga o enfermedad encontrada en el cultivo..."
-                        ></textarea>
+                        <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">🔬 Diagnóstico en Cultivo</h2>                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div className="md:col-span-1">
+                                <label htmlFor="cultivo" className="block text-sm font-medium text-gray-700">Cultivo de:</label>
+                                <select
+                                    id="cultivo"
+                                    {...register('cultivo', { required: 'Seleccione un cultivo' })}
+                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                >
+                                    <option value="">-- Seleccione --</option>
+                                    {cultivos.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                                {errors.cultivo && <p className="mt-1 text-sm text-red-600">{errors.cultivo.message}</p>}
+                            </div>
+                            <div className="md:col-span-2">
+                                <label htmlFor="diagnostico" className="block text-sm font-medium text-gray-700">Descripción del Diagnóstico</label>
+                                <textarea
+                                    id="diagnostico"
+                                    {...register('diagnostico', { required: 'El diagnóstico es obligatorio' })}
+                                    rows="3"
+                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                    placeholder="Describe el problema, plaga o enfermedad encontrada..."
+                                ></textarea>
+                            </div>
+                        </div>
                         {errors.diagnostico && <p className="mt-1 text-sm text-red-600">{errors.diagnostico.message}</p>}
                         <div className="mt-4">
                             <label className="block text-sm font-medium text-gray-700">Foto del Cultivo (Antes)</label>
@@ -587,30 +632,25 @@ export function RecommendationForm() {
                     </section>
 
                     {/* Recomendaciones de Seguridad */}
-                    <section className="bg-green-50 p-4 sm:p-6 rounded-xl border-2 border-green-200">
-                        <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">💡 Recomendaciones de Seguridad</h2>
-                        <div className="space-y-4">
-                            <ul className="space-y-2 list-disc list-inside text-gray-700">
-                                <li>{watch('recomendaciones.0')}</li>
-                                <li>{watch('recomendaciones.1')}</li>
-                                <li>{watch('recomendaciones.2')}</li>
-                            </ul>
-                            {/* Campos ocultos para que react-hook-form rastree los valores preestablecidos */}
-                            <input type="hidden" {...register('recomendaciones.0')} />
-                            <input type="hidden" {...register('recomendaciones.1')} />
-                            <input type="hidden" {...register('recomendaciones.2')} />
-
-                            <div>
-                                <label htmlFor="custom-recommendation" className="block text-sm font-medium text-gray-700">Otra recomendación (opcional):</label>
-                                <textarea
-                                    id="custom-recommendation"
-                                    {...register('recomendaciones.3')}
-                                    rows="2"
-                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                    placeholder="Escriba aquí una recomendación adicional..."
-                                ></textarea>
-                            </div>
+                    <section className="bg-white p-4 sm:p-6 rounded-xl shadow-sm border">
+                        <h2 className="text-lg font-bold text-green-800 mb-4 flex items-center gap-2">💡 Recomendación</h2>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                            {tiposRecomendacion.map((rec) => (
+                                <div key={rec} className="flex items-center">
+                                    <input
+                                        type="checkbox"
+                                        id={`rec-${rec}`}
+                                        value={rec}
+                                        {...register('recomendaciones')}
+                                        className="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500"
+                                    />
+                                    <label htmlFor={`rec-${rec}`} className="ml-2 block text-sm text-gray-900">
+                                        {rec}
+                                    </label>
+                                </div>
+                            ))}
                         </div>
+                        {errors.recomendaciones && <p className="mt-2 text-sm text-red-600">{errors.recomendaciones.message}</p>}
                     </section>
 
                     {/* Seguimiento Inicial y Firmas */}
