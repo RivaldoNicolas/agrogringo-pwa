@@ -39,7 +39,8 @@ export function RecommendationDetailPage() {
     const {
         noHoja,
         fecha,
-        estado, // Añadimos el estado
+        estado,
+        faseTratamiento,
         datosAgricultor,
         datosTecnico,
         cultivo, // Añadimos el cultivo
@@ -76,7 +77,7 @@ export function RecommendationDetailPage() {
                             </div>
                             <p className="mt-2 text-sm">Fecha: {new Date(fecha).toLocaleString()}</p>
                             <div className={`mt-2 inline-block px-3 py-1 text-sm font-bold rounded-full ${estadoStyles[estado] || 'bg-gray-100 text-gray-800'}`}>
-                                {estado}
+                                {estado} {faseTratamiento && `(${faseTratamiento})`}
                             </div>
                         </div>
                     </div>
@@ -157,14 +158,14 @@ export function RecommendationDetailPage() {
                                     <tr>
                                         <th className="p-2 text-left font-semibold">Producto</th>
                                         <th className="p-2 text-left font-semibold">Cantidad</th>
-                                        <th className="p-2 text-left font-semibold">Forma de Uso</th>
+                                        <th className="p-2 text-left font-semibold">Dosis / Instrucciones</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {detallesProductos.map((p, index) => (
                                         <tr key={index} className="border-b">
                                             <td className="p-2">{p.producto}</td>
-                                            <td className="p-2">{p.cantidad}</td>
+                                            <td className="p-2">{p.cantidad} {p.unidad}</td>
                                             <td className="p-2">{p.formaUso || '-'}</td>
                                         </tr>
                                     ))}
