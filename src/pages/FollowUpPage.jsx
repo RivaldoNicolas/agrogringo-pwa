@@ -6,6 +6,8 @@ import { compressImage } from '@/utils/imageCompressor';
 import { fileToBase64 } from '@/utils/fileUtils';
 import toast from 'react-hot-toast';
 
+const fasesTratamiento = ['Siembra', 'Vegetativo', 'Floración', 'Producción', 'Postcosecha', 'Cosecha', 'Otro'];
+
 
 export function FollowUpPage() {
     const { id } = useParams();
@@ -17,6 +19,7 @@ export function FollowUpPage() {
     const { register, handleSubmit, watch, setValue, formState: { errors, isSubmitting } } = useForm({
         defaultValues: {
             estado: '',
+            faseTratamiento: '',
             seguimiento: {
                 fotoDespues: null,
                 observaciones: '',
@@ -25,6 +28,7 @@ export function FollowUpPage() {
     });
 
     const estadoActual = watch('estado');
+    const faseActual = watch('faseTratamiento');
 
     useEffect(() => {
         const fetchRecommendation = async () => {
@@ -35,6 +39,7 @@ export function FollowUpPage() {
                     setRecommendation(data);
                     // Cargar datos existentes en el formulario
                     setValue('estado', data.estado);
+                    setValue('faseTratamiento', data.faseTratamiento || '');
                     setValue('seguimiento.observaciones', data.seguimiento?.observaciones || '');
                 } else {
                     setError('No se encontró la recomendación.');
@@ -53,6 +58,7 @@ export function FollowUpPage() {
         try {
             const updates = {
                 estado: data.estado,
+                faseTratamiento: data.estado === 'En tratamiento' ? data.faseTratamiento : '', // Solo guarda la fase si el estado es 'En tratamiento'
                 seguimiento: {
                     ...recommendation.seguimiento, // Mantenemos fotoAntes y otros datos
                     observaciones: data.seguimiento.observaciones,
@@ -82,10 +88,6 @@ export function FollowUpPage() {
         }
     };
 
-    const handleStateChange = (newState) => {
-        setValue('estado', newState, { shouldDirty: true });
-    };
-
     if (loading) return <p className="p-4 text-center">Cargando...</p>;
     if (error) return <p className="p-4 text-center text-red-500">{error}</p>;
     if (!recommendation) return null;
@@ -100,31 +102,45 @@ export function FollowUpPage() {
 
                 <form onSubmit={handleSubmit(onSubmit)} className="p-4 sm:p-6 space-y-6 bg-white rounded-b-xl shadow-lg">
                     {/* Sección de Estado */}
-                    <section className="p-4 bg-gray-50 rounded-lg border">
-                        <h2 className="text-lg font-bold text-gray-800 mb-3">Estado Actual: <span className="text-primary-600">{estadoActual}</span></h2>
-                        <div className="flex flex-wrap gap-3">
-                            <button
-                                type="button"
-                                onClick={() => handleStateChange('Pendiente')}
-                                className={`btn-state ${estadoActual === 'Pendiente' ? 'bg-yellow-500 text-white' : 'bg-gray-200'}`}
+                    <section className="p-4 bg-gray-50 rounded-lg border space-y-4">
+                        <div>
+                            <label htmlFor="estado" className="block text-sm font-medium text-gray-700">Cambiar Estado</label>
+                            <select
+                                id="estado"
+                                {...register('estado')}
+                                className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
                             >
-                                Pendiente
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleStateChange('En tratamiento')}
-                                className={`btn-state ${estadoActual === 'En tratamiento' ? 'bg-blue-500 text-white' : 'bg-gray-200'}`}
-                            >
-                                En Tratamiento
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => handleStateChange('Finalizado')}
-                                className={`btn-state ${estadoActual === 'Finalizado' ? 'bg-green-600 text-white' : 'bg-gray-200'}`}
-                            >
-                                Finalizado
-                            </button>
+                                <option value="Pendiente">Pendiente</option>
+                                <option value="En tratamiento">En tratamiento</option>
+                                <option value="Finalizado">Finalizado</option>
+                            </select>
                         </div>
+
+                        {/* Campo Condicional para Fase de Tratamiento */}
+                        {estadoActual === 'En tratamiento' && (
+                            <div className="animate-fade-in">
+                                <label htmlFor="faseTratamiento" className="block text-sm font-medium text-gray-700">Fase del Tratamiento</label>
+                                <select
+                                    id="faseTratamiento"
+                                    {...register('faseTratamiento')}
+                                    className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                >
+                                    <option value="">-- Seleccione Fase --</option>
+                                    {fasesTratamiento.map(fase => <option key={fase} value={fase}>{fase}</option>)}
+                                </select>
+
+                                {faseActual === 'Otro' && (
+                                    <div className="mt-2">
+                                        <label htmlFor="faseTratamientoOtro" className="block text-sm font-medium text-gray-700">Especificar otra fase</label>
+                                        <input
+                                            id="faseTratamientoOtro"
+                                            {...register('faseTratamiento')} // Se registra en el mismo campo
+                                            placeholder="Escriba la fase personalizada"
+                                            className="w-full p-2 mt-1 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500" />
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </section>
 
                     {/* Sección de Finalización (solo si el estado es 'Finalizado') */}

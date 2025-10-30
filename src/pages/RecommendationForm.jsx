@@ -25,7 +25,9 @@ const ucayaliData = {
 
 // Datos para los nuevos campos
 const cultivos = ['Cocona', 'Papaya', 'Maíz', 'Maní', 'Cacao', 'Camu Camu', 'Ají', 'Otros'];
-const tiposRecomendacion = ['Análisis de suelo', 'Aplicaciones', 'Control Fitosanitario', 'Enmienda', 'Manejo de Arvences', 'Fertilización', 'Labores culturales'];
+const tiposRecomendacion = ['Análisis de suelo', 'Aplicaciones', 'Control Fitosanitario', 'Enmienda', 'Manejo de Arvences', 'Fertilización', 'Labores culturales', 'Podas', 'Recoleccion de Cosecha', 'Otros'];
+const fasesTratamiento = ['Siembra', 'Vegetativo', 'Floración', 'Producción', 'Postcosecha', 'Cosecha', 'Otro'];
+const unidadesCantidad = ['gr', 'ml', 'kg', 'L', 'unid.'];
 
 export function RecommendationForm() {
     const navigate = useNavigate();
@@ -69,7 +71,8 @@ export function RecommendationForm() {
             },
             cultivo: '',
             diagnostico: '',
-            detallesProductos: [{ producto: '', cantidad: 1, formaUso: '' }],
+            detallesProductos: [{ producto: '', cantidad: 1, unidad: 'gr', formaUso: '' }],
+            estado: 'Pendiente',
             recomendaciones: [], // Ahora será un array de strings seleccionados
             seguimiento: {
                 fotoAntes: null,
@@ -78,7 +81,6 @@ export function RecommendationForm() {
             },
             firmaAgricultor: null,
             firmaTecnico: null,
-            estado: 'Pendiente',
         },
     });
 
@@ -279,7 +281,7 @@ export function RecommendationForm() {
     };
 
     // Función para añadir una nueva fila de producto con valores por defecto
-    const addProductRow = () => append({ producto: '', cantidad: 1, formaUso: '' });
+    const addProductRow = () => append({ producto: '', cantidad: 1, unidad: 'gr', formaUso: '' });
 
     return (
         <div className="bg-gray-100 min-h-full">
@@ -506,8 +508,8 @@ export function RecommendationForm() {
                             <thead className="bg-gray-100">
                                 <tr>
                                     <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-2/5">Producto</th>
-                                    <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/5">Cantidad</th>
-                                    <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-2/5">Forma de Uso</th>
+                                    <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-1/4">Cantidad</th>
+                                    <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider w-2/5">Dosis / Instrucciones</th>
                                     <th className="p-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider"></th>
                                 </tr>
                             </thead>
@@ -533,20 +535,33 @@ export function RecommendationForm() {
                                             {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
                                         </td>
                                         <td className="p-2">
-                                            <Controller
-                                                name={`detallesProductos.${index}.cantidad`}
-                                                control={control}
-                                                rules={{ required: 'Cantidad requerida', valueAsNumber: true, min: { value: 0.01, message: 'Debe ser > 0' } }}
-                                                render={({ field }) => (
-                                                    <input
-                                                        type="number"
-                                                        step="any" // Permite decimales
-                                                        {...field}
-                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                                    />
-                                                )}
-                                            />
-                                            {errors.detallesProductos?.[index]?.cantidad && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>}
+                                            <div className="flex items-center gap-1">
+                                                <Controller
+                                                    name={`detallesProductos.${index}.cantidad`}
+                                                    control={control}
+                                                    rules={{ required: 'Requerido', valueAsNumber: true, min: { value: 0.01, message: '> 0' } }}
+                                                    render={({ field }) => (
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            {...field}
+                                                            className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                        />
+                                                    )}
+                                                />
+                                                <Controller
+                                                    name={`detallesProductos.${index}.unidad`}
+                                                    control={control}
+                                                    render={({ field }) => (
+                                                        <select {...field} className="p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                                            {unidadesCantidad.map(u => <option key={u} value={u}>{u}</option>)}
+                                                        </select>
+                                                    )}
+                                                />
+                                            </div>
+                                            {errors.detallesProductos?.[index]?.cantidad && (
+                                                <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>
+                                            )}
                                         </td>
                                         <td className="p-2">
                                             <Controller
@@ -556,7 +571,7 @@ export function RecommendationForm() {
                                                     <input
                                                         {...field}
                                                         className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                                        placeholder="Instrucciones"
+                                                        placeholder="Ej: 1 sobre por mochila de 20L"
                                                     />
                                                 )}
                                             />
@@ -594,24 +609,37 @@ export function RecommendationForm() {
                                             {errors.detallesProductos?.[index]?.producto && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].producto.message}</p>}
                                         </div>
                                         <div>
-                                            <label className="text-xs font-medium text-gray-600">Cantidad</label>
-                                            <Controller
-                                                name={`detallesProductos.${index}.cantidad`}
-                                                control={control}
-                                                rules={{ required: 'Cantidad requerida', valueAsNumber: true, min: { value: 0.01, message: 'Debe ser > 0' } }}
-                                                render={({ field }) => (
-                                                    <input
-                                                        type="number"
-                                                        step="any"
-                                                        {...field}
-                                                        className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                                    />
-                                                )}
-                                            />
-                                            {errors.detallesProductos?.[index]?.cantidad && <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>}
+                                            <label className="text-xs font-medium text-gray-600">Cantidad y Unidad</label>
+                                            <div className="flex items-center gap-2 mt-1">
+                                                <Controller
+                                                    name={`detallesProductos.${index}.cantidad`}
+                                                    control={control}
+                                                    rules={{ required: 'Requerido', valueAsNumber: true, min: { value: 0.01, message: '> 0' } }}
+                                                    render={({ field }) => (
+                                                        <input
+                                                            type="number"
+                                                            step="any"
+                                                            {...field}
+                                                            className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                                                        />
+                                                    )}
+                                                />
+                                                <Controller
+                                                    name={`detallesProductos.${index}.unidad`}
+                                                    control={control}
+                                                    render={({ field }) => (
+                                                        <select {...field} className="p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500">
+                                                            {unidadesCantidad.map(u => <option key={u} value={u}>{u}</option>)}
+                                                        </select>
+                                                    )}
+                                                />
+                                            </div>
+                                            {errors.detallesProductos?.[index]?.cantidad && (
+                                                <p className="mt-1 text-xs text-red-500">{errors.detallesProductos[index].cantidad.message}</p>
+                                            )}
                                         </div>
                                         <div>
-                                            <label className="text-xs font-medium text-gray-600">Forma de Uso</label>
+                                            <label className="text-xs font-medium text-gray-600">Dosis / Instrucciones</label>
                                             <Controller
                                                 name={`detallesProductos.${index}.formaUso`}
                                                 control={control}
@@ -619,7 +647,7 @@ export function RecommendationForm() {
                                                     <input
                                                         {...field}
                                                         className="w-full p-2 border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                                                        placeholder="Instrucciones"
+                                                        placeholder="Ej: 1 sobre por mochila de 20L"
                                                     />
                                                 )}
                                             />

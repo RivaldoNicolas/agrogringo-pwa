@@ -2,9 +2,9 @@ import Dexie from "dexie";
 
 export const db = new Dexie("agrogringoDB");
 
-db.version(11).stores({
+db.version(12).stores({
   recommendations:
-    "++localId, id, noHoja, fecha, [userId+fecha], dniAgricultor, cultivo, estado, userId, syncStatus, timestampUltimaModificacion",
+    "++localId, id, noHoja, fecha, [userId+fecha], dniAgricultor, cultivo, estado, faseTratamiento, userId, syncStatus, timestampUltimaModificacion",
   products: "++localId, id, &nombre, cantidad, formaDeUso", // No changes needed here
   clients: "++localId, &dni, nombre, celular, signature",
   userProfiles: "&userId, signature",
