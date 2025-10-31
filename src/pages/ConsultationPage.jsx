@@ -1,15 +1,22 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getAllRecommendations, deleteRecommendation } from '@/services/api/recommendations';
 import { useAuth } from '@/hooks/useAuth';
 import toast from 'react-hot-toast';
 import { ChevronDownIcon, FunnelIcon } from '@heroicons/react/24/solid'; // Necesitarás instalar @heroicons/react
 import { Link } from 'react-router-dom';
+import { exportElementAsPdf } from '@/services/exportPdf.js';
+import { RecommendationPdfLayout } from '../components/RecommendationPdfLayout';
+import { exportToExcel } from '@/services/excelExporter'; // ¡Importamos el nuevo exportador!
 
 export function ConsultationPage() {
     const [filteredData, setFilteredData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const { user } = useAuth();
+
+    // NUEVO: id de la recomendación seleccionada para exportar
+    const [selectedRecId, setSelectedRecId] = useState(null);
+    const pdfLayoutRef = useRef(null); // Ref para el componente del PDF/Imagen
 
     // Estados para los filtros
     const [clientFilter, setClientFilter] = useState('');
@@ -95,6 +102,8 @@ export function ConsultationPage() {
                 // Actualizar el estado para reflejar la eliminación en la UI
                 setFilteredData(prev => prev.filter(rec => rec.localId !== localId));
                 setTotalCount(prev => prev - 1);
+                // Si se eliminó la recomendación seleccionada, limpiar selección
+                if (selectedRecId === localId) setSelectedRecId(null);
                 toast.success('Recomendación eliminada con éxito.');
             } catch (err) {
                 toast.error('Error al eliminar la recomendación.');
@@ -122,11 +131,65 @@ export function ConsultationPage() {
         // Nota: El filtro se aplica al hacer clic en "Aplicar Filtros"
     };
 
+    // NUEVO: exportar la recomendación seleccionada desde el header
+    const handleExportSelected = async () => {
+        if (!selectedRecId) {
+            toast.error('Selecciona una recomendación para exportar.');
+            return;
+        }
+        if (!pdfLayoutRef.current) {
+            toast.error('El contenido para exportar no está listo. Intenta de nuevo.');
+            return;
+        }
+
+        const rec = filteredData.find(r => r.localId === selectedRecId);
+        const baseFileName = `recomendacion-${rec.noHoja || rec.localId || Date.now()}`;
+
+        try {
+            const t = toast.loading('Generando PDF...');
+            await exportElementAsPdf(pdfLayoutRef.current, `${baseFileName}.pdf`);
+            toast.dismiss(t);
+            toast.success('PDF descargado con éxito.');
+        } catch (err) {
+            toast.error('Error al generar el PDF.');
+            console.error(err);
+        }
+    };
+
+    // NUEVO: exportar los datos filtrados a Excel
+    const handleExportExcel = () => {
+        if (filteredData.length === 0) {
+            toast.error('No hay datos para exportar a Excel.');
+            return;
+        }
+        try {
+            const t = toast.loading('Generando archivo Excel...');
+            exportToExcel(filteredData); // Llamamos a la función con los datos actuales
+            toast.dismiss(t);
+            toast.success('Excel exportado con éxito.');
+        } catch (err) {
+            toast.error('Hubo un error al generar el archivo Excel.');
+            console.error(err);
+        }
+    };
+
     if (loading) return <p className="p-4 text-center">Cargando recomendaciones...</p>;
     if (error) return <p className="p-4 text-center text-red-500">{error}</p>;
 
     return (
         <div className="max-w-7xl mx-auto p-4">
+            {/* Renderizar el layout del PDF/Imagen fuera de la pantalla */}
+            {/* Solo se renderiza si hay una recomendación seleccionada */}
+            {selectedRecId && (
+                <div style={{ position: 'absolute', left: '-9999px', top: '0' }}>
+                    <div ref={pdfLayoutRef}>
+                        <RecommendationPdfLayout
+                            recommendation={filteredData.find(r => r.localId === selectedRecId)}
+                        />
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                 {/* HEADER DE LA PÁGINA */}
                 <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-6">
@@ -140,14 +203,15 @@ export function ConsultationPage() {
                         </div>
                         <div className="flex gap-2">
                             <button
-                                onClick={() => toast.error('Exportar a Excel aún no está implementado.')}
+                                onClick={handleExportExcel}
                                 className="btn-export bg-white/20 border-white/30 hover:bg-white/30 border-2 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
                             >
                                 📊 Excel
                             </button>
                             <button
-                                onClick={() => toast.error('Exportar a PDF aún no está implementado.')}
-                                className="btn-export bg-white/20 border-white/30 hover:bg-white/30 border-2 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2"
+                                onClick={handleExportSelected}
+                                disabled={!selectedRecId}
+                                className="btn-export bg-white/20 border-white/30 hover:bg-white/30 border-2 text-white font-bold py-2 px-4 rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                             >
                                 📄 PDF
                             </button>
@@ -224,17 +288,19 @@ export function ConsultationPage() {
                 <div className="hidden lg:block overflow-x-auto bg-white rounded-lg shadow">
                     <table className="w-full min-w-[900px] text-sm">
                         <thead className="bg-gray-100">
-                            <tr className="text-left text-gray-600">
-                                <th className="p-3 font-semibold">N° Hoja</th>
-                                <th className="p-3 font-semibold">Fecha</th>
-                                <th className="p-3 font-semibold">Cliente</th>
-                                <th className="p-3 font-semibold">Estado</th>
-                                <th className="p-3 font-semibold text-center">Acciones</th>
-                            </tr>
+                            <tr className="text-left text-gray-600"><th className="p-3 font-semibold">Sel</th><th className="p-3 font-semibold">N° Hoja</th><th className="p-3 font-semibold">Fecha</th><th className="p-3 font-semibold">Cliente</th><th className="p-3 font-semibold">Estado</th><th className="p-3 font-semibold text-center">Acciones</th></tr>
                         </thead>
                         <tbody>
                             {filteredData.length > 0 ? filteredData.map((rec) => (
                                 <tr key={rec.localId} className="border-b hover:bg-gray-50">
+                                    <td className="p-3">
+                                        <input
+                                            type="radio"
+                                            name="selectedRec"
+                                            checked={selectedRecId === rec.localId}
+                                            onChange={() => setSelectedRecId(rec.localId)}
+                                        />
+                                    </td>
                                     <td className="p-3 font-mono font-bold text-green-700">{rec.noHoja}</td>
                                     <td className="p-3">{new Date(rec.fecha).toLocaleDateString()}</td>
                                     <td className="p-3">
@@ -254,13 +320,11 @@ export function ConsultationPage() {
                                     </td>
                                 </tr>
                             )) : (
-                                <tr>
-                                    <td colSpan="5" className="text-center p-8 text-gray-500">
-                                        <div className="text-4xl mb-2">📋</div>
-                                        <h3 className="font-bold text-lg">No se encontraron recomendaciones</h3>
-                                        <p>Prueba ajustando los filtros o crea una nueva recomendación.</p>
-                                    </td>
-                                </tr>
+                                <tr><td colSpan="6" className="text-center p-8 text-gray-500">
+                                    <div className="text-4xl mb-2">📋</div>
+                                    <h3 className="font-bold text-lg">No se encontraron recomendaciones</h3>
+                                    <p>Prueba ajustando los filtros o crea una nueva recomendación.</p>
+                                </td></tr>
                             )}
                         </tbody>
                     </table>
@@ -285,7 +349,9 @@ export function ConsultationPage() {
                                 <span className={`px-3 py-1 text-xs font-bold rounded-full ${estadoStyles[rec.estado] || 'bg-gray-100'}`}>
                                     {rec.estado}
                                 </span>
-                                <div className="flex gap-2">
+                                <div className="flex gap-2 items-center">
+                                    {/* selección en móvil */}
+                                    <input type="radio" name="selectedRecMobile" checked={selectedRecId === rec.localId} onChange={() => setSelectedRecId(rec.localId)} />
                                     <Link to={`/recommendations/${rec.localId}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">👁️</Link>
                                     <Link to={`/recommendations/edit/${rec.localId}`} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">✏️</Link>
                                     <Link to={`/recommendations/${rec.localId}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">📸</Link>
