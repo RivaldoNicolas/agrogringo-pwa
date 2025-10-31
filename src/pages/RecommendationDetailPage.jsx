@@ -1,19 +1,27 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getRecommendationById } from '@/services/api/recommendations';
+import toast from 'react-hot-toast';
+import { exportElementAsPdf } from '@/services/exportPdf.js';
+import { RecommendationPdfLayout } from '../components/RecommendationPdfLayout';
 
 export function RecommendationDetailPage() {
     const { id } = useParams();
     const [recommendation, setRecommendation] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+    const pdfLayoutRef = useRef(null); // 3. Ref para el componente del PDF
+
+    // El ID de la URL es un string, lo convertimos a número para la API
+    // pero lo guardamos como string para la compatibilidad con IDs de Dexie.
+    const recommendationId = id;
 
     useEffect(() => {
         const fetchRecommendation = async () => {
             try {
                 setLoading(true);
-                // El ID de la URL es un string, lo convertimos a número
-                const data = await getRecommendationById(Number(id));
+                // El ID de la URL es un string, lo convertimos a número para la API.
+                const data = await getRecommendationById(Number(recommendationId));
                 if (data) {
                     setRecommendation(data);
                 } else {
@@ -27,10 +35,31 @@ export function RecommendationDetailPage() {
             }
         };
 
-        if (id) {
+        if (recommendationId) {
             fetchRecommendation();
         }
-    }, [id]);
+    }, [recommendationId]);
+
+    // 4. Función para manejar la exportación
+    const handleExport = async () => {
+        if (!pdfLayoutRef.current) {
+            toast.error('El contenido para exportar no está listo. Intenta de nuevo.');
+            return;
+        }
+
+        const rec = recommendation;
+        const baseFileName = `recomendacion-${rec.noHoja || rec.localId || Date.now()}`;
+
+        try {
+            const t = toast.loading('Generando PDF...');
+            await exportElementAsPdf(pdfLayoutRef.current, `${baseFileName}.pdf`);
+            toast.dismiss(t);
+            toast.success('PDF descargado con éxito.');
+        } catch (error) {
+            console.error(error);
+            toast.error('Error al generar el PDF.');
+        }
+    };
 
     if (loading) return <p className="p-4 text-center">Cargando detalle de la recomendación...</p>;
     if (error) return <p className="p-4 text-center text-red-500">{error}</p>;
@@ -60,6 +89,13 @@ export function RecommendationDetailPage() {
 
     return (
         <div className="max-w-4xl p-4 mx-auto">
+            {/* 5. Renderizar el layout del PDF fuera de la pantalla para poder capturarlo */}
+            <div style={{ position: 'absolute', left: '-9999px', top: '0' }}>
+                <div ref={pdfLayoutRef}>
+                    <RecommendationPdfLayout recommendation={recommendation} />
+                </div>
+            </div>
+
             <div className="bg-white rounded-xl shadow-lg overflow-hidden">
                 {/* HEADER */}
                 <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-6">
@@ -76,7 +112,8 @@ export function RecommendationDetailPage() {
                                 N° {noHoja}
                             </div>
                             <p className="mt-2 text-sm">Fecha: {new Date(fecha).toLocaleString()}</p>
-                            <div className={`mt-2 inline-block px-3 py-1 text-sm font-bold rounded-full ${estadoStyles[estado] || 'bg-gray-100 text-gray-800'}`}>
+                            {/* Usamos h-7 y leading-7 para forzar el centrado vertical */}
+                            <div className={`mt-2 inline-block px-3 text-sm font-bold rounded-full h-7 leading-7 ${estadoStyles[estado] || 'bg-gray-100 text-gray-800'}`}>
                                 {estado} {faseTratamiento && `(${faseTratamiento})`}
                             </div>
                         </div>
@@ -216,13 +253,20 @@ export function RecommendationDetailPage() {
                     </section>
 
                     {/* Botón para volver */}
-                    <div className="flex justify-center pt-4">
+                    <div className="flex flex-col sm:flex-row justify-center items-center gap-4 pt-4">
                         <Link
                             to="/"
                             className="btn btn-back bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2"
                         >
                             <span>← Volver a la Lista</span>
                         </Link>
+                        {/* Botón único para generar PDF */}
+                        <button
+                            onClick={handleExport}
+                            className="btn btn-export bg-gradient-to-r from-red-600 to-red-800 text-white font-bold py-2 px-6 rounded-lg flex items-center gap-2"
+                        >
+                            📄 Generar PDF
+                        </button>
                     </div>
                 </div>
             </div>
