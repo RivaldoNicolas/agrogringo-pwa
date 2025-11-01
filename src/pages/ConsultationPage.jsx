@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { getAllRecommendations, deleteRecommendation } from '@/services/api/recommendations';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/hooks/useAuth'; // Asegúrate de que la ruta sea correcta
 import toast from 'react-hot-toast';
 import { ChevronDownIcon, FunnelIcon } from '@heroicons/react/24/solid'; // Necesitarás instalar @heroicons/react
 import { Link } from 'react-router-dom';
@@ -13,6 +13,7 @@ export function ConsultationPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const { user } = useAuth();
+    const initialLoadDone = useRef(false); // 1. Añadimos una referencia para controlar la carga inicial.
 
     // NUEVO: id de la recomendación seleccionada para exportar
     const [selectedRecId, setSelectedRecId] = useState(null);
@@ -69,8 +70,13 @@ export function ConsultationPage() {
     };
 
     useEffect(() => {
-        // Carga inicial
-        fetchRecommendations(1, {});
+        // 2. Usamos la referencia para asegurarnos de que la carga inicial solo se ejecute una vez.
+        // Esto soluciona el problema del doble `useEffect` en StrictMode.
+        if (!initialLoadDone.current) {
+            initialLoadDone.current = true;
+            // Carga inicial
+            fetchRecommendations(1, {});
+        }
     }, [user]);
 
     const applyFilters = () => {
@@ -95,15 +101,15 @@ export function ConsultationPage() {
         fetchRecommendations(nextPage, filters, true);
     };
 
-    const handleDelete = async (localId, nombreCliente) => {
+    const handleDelete = async (id, nombreCliente) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar la recomendación para "${nombreCliente}"? Esta acción no se puede deshacer.`)) {
             try {
-                await deleteRecommendation(localId);
+                await deleteRecommendation(id);
                 // Actualizar el estado para reflejar la eliminación en la UI
-                setFilteredData(prev => prev.filter(rec => rec.localId !== localId));
+                setFilteredData(prev => prev.filter(rec => rec.id !== id));
                 setTotalCount(prev => prev - 1);
                 // Si se eliminó la recomendación seleccionada, limpiar selección
-                if (selectedRecId === localId) setSelectedRecId(null);
+                if (selectedRecId === id) setSelectedRecId(null);
                 toast.success('Recomendación eliminada con éxito.');
             } catch (err) {
                 toast.error('Error al eliminar la recomendación.');
@@ -142,7 +148,7 @@ export function ConsultationPage() {
             return;
         }
 
-        const rec = filteredData.find(r => r.localId === selectedRecId);
+        const rec = filteredData.find(r => r.id === selectedRecId);
         const baseFileName = `recomendacion-${rec.noHoja || rec.localId || Date.now()}`;
 
         try {
@@ -184,7 +190,7 @@ export function ConsultationPage() {
                 <div style={{ position: 'absolute', left: '-9999px', top: '0' }}>
                     <div ref={pdfLayoutRef}>
                         <RecommendationPdfLayout
-                            recommendation={filteredData.find(r => r.localId === selectedRecId)}
+                            recommendation={filteredData.find(r => r.id === selectedRecId)}
                         />
                     </div>
                 </div>
@@ -292,13 +298,13 @@ export function ConsultationPage() {
                         </thead>
                         <tbody>
                             {filteredData.length > 0 ? filteredData.map((rec) => (
-                                <tr key={rec.localId} className="border-b hover:bg-gray-50">
+                                <tr key={rec.id} className="border-b hover:bg-gray-50">
                                     <td className="p-3">
                                         <input
                                             type="radio"
                                             name="selectedRec"
-                                            checked={selectedRecId === rec.localId}
-                                            onChange={() => setSelectedRecId(rec.localId)}
+                                            checked={selectedRecId === rec.id}
+                                            onChange={() => setSelectedRecId(rec.id)}
                                         />
                                     </td>
                                     <td className="p-3 font-mono font-bold text-green-700">{rec.noHoja}</td>
@@ -313,10 +319,10 @@ export function ConsultationPage() {
                                         </span>
                                     </td>
                                     <td className="p-3 flex gap-2 justify-center">
-                                        <Link to={`/recommendations/${rec.localId}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded flex items-center gap-1">👁️ Ver</Link>
-                                        <Link to={`/recommendations/${rec.localId}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded flex items-center gap-1">📸 Seguir</Link>
-                                        <Link to={`/recommendations/edit/${rec.localId}`} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded flex items-center gap-1">✏️ Edit</Link>
-                                        <button onClick={() => handleDelete(rec.localId, rec.datosAgricultor.nombre)} className="btn-action bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded flex items-center gap-1">🗑️ Eliminar</button>
+                                        <Link to={`/recommendations/${rec.id}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white py-1 px-3 rounded flex items-center gap-1">👁️ Ver</Link>
+                                        <Link to={`/recommendations/${rec.id}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white py-1 px-3 rounded flex items-center gap-1">📸 Seguir</Link>
+                                        <Link to={`/recommendations/edit/${rec.id}`} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white py-1 px-3 rounded flex items-center gap-1">✏️ Edit</Link>
+                                        <button onClick={() => handleDelete(rec.id, rec.datosAgricultor.nombre)} className="btn-action bg-red-600 hover:bg-red-700 text-white py-1 px-3 rounded flex items-center gap-1">🗑️ Eliminar</button>
                                     </td>
                                 </tr>
                             )) : (
@@ -333,7 +339,7 @@ export function ConsultationPage() {
                 {/* VISTA DE TARJETAS (para pantallas pequeñas) */}
                 <div className="lg:hidden space-y-4">
                     {filteredData.length > 0 ? filteredData.map((rec) => (
-                        <div key={rec.localId} className="bg-white rounded-lg shadow-md p-4 border-l-4 border-green-600">
+                        <div key={rec.id} className="bg-white rounded-lg shadow-md p-4 border-l-4 border-green-600">
                             <div className="flex justify-between items-start">
                                 <div>
                                     <p className="font-bold text-gray-800">{rec.datosAgricultor.nombre}</p>
@@ -351,11 +357,11 @@ export function ConsultationPage() {
                                 </span>
                                 <div className="flex gap-2 items-center">
                                     {/* selección en móvil */}
-                                    <input type="radio" name="selectedRecMobile" checked={selectedRecId === rec.localId} onChange={() => setSelectedRecId(rec.localId)} />
-                                    <Link to={`/recommendations/${rec.localId}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">👁️</Link>
-                                    <Link to={`/recommendations/edit/${rec.localId}`} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">✏️</Link>
-                                    <Link to={`/recommendations/${rec.localId}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">📸</Link>
-                                    <button onClick={() => handleDelete(rec.localId, rec.datosAgricultor.nombre)} className="btn-action bg-red-600 hover:bg-red-700 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">🗑️</button>
+                                    <input type="radio" name="selectedRecMobile" checked={selectedRecId === rec.id} onChange={() => setSelectedRecId(rec.id)} />
+                                    <Link to={`/recommendations/${rec.id}`} className="btn-action bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">👁️</Link>
+                                    <Link to={`/recommendations/edit/${rec.id}`} className="btn-action bg-yellow-500 hover:bg-yellow-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">✏️</Link>
+                                    <Link to={`/recommendations/${rec.id}/follow-up`} className="btn-action bg-orange-500 hover:bg-orange-600 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">📸</Link>
+                                    <button onClick={() => handleDelete(rec.id, rec.datosAgricultor.nombre)} className="btn-action bg-red-600 hover:bg-red-700 text-white p-2 rounded-full h-9 w-9 flex items-center justify-center">🗑️</button>
                                 </div>
                             </div>
                         </div>

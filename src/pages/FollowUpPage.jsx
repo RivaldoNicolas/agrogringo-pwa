@@ -34,7 +34,7 @@ export function FollowUpPage() {
         const fetchRecommendation = async () => {
             try {
                 setLoading(true);
-                const data = await getRecommendationById(Number(id));
+                const data = await getRecommendationById(id);
                 if (data) {
                     setRecommendation(data);
                     // Cargar datos existentes en el formulario
@@ -79,7 +79,7 @@ export function FollowUpPage() {
                 updates.seguimiento.fotoDespues = base64Image;
             }
 
-            await updateRecommendation(Number(id), updates);
+            await updateRecommendation(id, updates);
             toast.success('Seguimiento guardado con éxito.');
             navigate('/'); // Volver a la lista
         } catch (err) {

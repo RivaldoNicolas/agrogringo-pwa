@@ -106,9 +106,9 @@ export function RecommendationForm() {
 
             if (isEditMode) {
                 // Lógica de Actualización
-                // Quitamos datos que no deben actualizarse directamente
+                // El ID ya no está en `data` porque no es un campo del formulario. Lo obtenemos de useParams.
                 const { noHoja, ...updateData } = data;
-                await updateRecommendation(Number(id), updateData);
+                await updateRecommendation(id, updateData);
                 toast.success('Recomendación actualizada con éxito!');
                 navigate('/');
             } else {
@@ -161,7 +161,7 @@ export function RecommendationForm() {
             if (isEditMode) {
                 // MODO EDICIÓN: Cargar datos de la recomendación existente
                 try {
-                    const recommendationData = await getRecommendationById(Number(id));
+                    const recommendationData = await getRecommendationById(id);
                     if (recommendationData) {
                         // Usamos reset para poblar todo el formulario con los datos cargados
                         // Si no hay firma de técnico en los datos guardados, intentamos cargar la del perfil

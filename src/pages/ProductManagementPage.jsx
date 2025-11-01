@@ -43,13 +43,13 @@ export function ProductManagementPage() {
         }
     };
 
-    const handleDelete = async (localId, productName) => {
+    const handleDelete = async (id, productName) => {
         if (window.confirm(`¿Estás seguro de que quieres eliminar el producto "${productName}"?`)) {
             try {
-                await deleteProduct(localId);
+                await deleteProduct(id);
                 toast.success(`Producto "${productName}" eliminado.`);
                 // Actualiza la UI filtrando el producto eliminado
-                setProducts(prevProducts => prevProducts.filter(p => p.localId !== localId));
+                setProducts(prevProducts => prevProducts.filter(p => p.id !== id));
             } catch (error) {
                 toast.error('Error al eliminar el producto.');
                 console.error(error);
@@ -128,13 +128,13 @@ export function ProductManagementPage() {
                         <tbody>
                             {products.length > 0 ? (
                                 products.map(product => (
-                                    <tr key={product.localId} className="border-b hover:bg-gray-50">
+                                    <tr key={product.id} className="border-b hover:bg-gray-50">
                                         <td className="p-3 font-medium text-gray-800">{product.nombre}</td>
                                         <td className="p-3 text-gray-600">{product.cantidad}</td>
                                         <td className="p-3 text-gray-600">{product.formaDeUso}</td>
                                         <td className="p-3">
                                             <button
-                                                onClick={() => handleDelete(product.localId, product.nombre)}
+                                                onClick={() => handleDelete(product.id, product.nombre)}
                                                 className="text-red-500 hover:text-red-700 font-semibold text-sm"
                                             >
                                                 Eliminar
