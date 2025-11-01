@@ -62,7 +62,7 @@ export function ProductAutocomplete({ products, value, onChange, onSelect }) {
                     {suggestions.length > 0 ? (
                         suggestions.map((product) => (
                             <li
-                                key={product.localId}
+                                key={product.id}
                                 onMouseDown={() => handleSelectSuggestion(product)} // Usamos onMouseDown para que se dispare antes del onBlur del input
                                 className="px-4 py-2 cursor-pointer hover:bg-green-50"
                             >{product.nombre}</li>

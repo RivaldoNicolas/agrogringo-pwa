@@ -21,7 +21,7 @@ export function RecommendationDetailPage() {
             try {
                 setLoading(true);
                 // El ID de la URL es un string, lo convertimos a número para la API.
-                const data = await getRecommendationById(Number(recommendationId));
+                const data = await getRecommendationById(recommendationId);
                 if (data) {
                     setRecommendation(data);
                 } else {

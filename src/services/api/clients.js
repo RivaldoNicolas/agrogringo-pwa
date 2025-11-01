@@ -8,28 +8,26 @@ import { db } from "@/services/database/dexieConfig";
  * @returns {Promise<number>} El ID local del registro.
  */
 export const putClient = async (clientData) => {
-  // 1. Buscar si ya existe un cliente con este DNI.
-  const existingClient = await db.clients
-    .where("dni")
-    .equals(clientData.dni)
-    .first();
-
-  if (existingClient) {
-    // 2. Si existe, lo actualizamos con los nuevos datos.
-    // Usamos el localId existente para asegurarnos de que actualizamos el registro correcto.
-    return await db.clients.update(existingClient.localId, {
-      ...existingClient, // Mantenemos los datos antiguos que no cambian
-      ...clientData, // Sobrescribimos con los datos nuevos del formulario
-      timestampUltimaModificacion: new Date(),
-    });
-  } else {
-    // 3. Si no existe, creamos un nuevo registro.
-    // Dexie se encargará del 'localId' autoincremental.
-    return await db.clients.add({
-      ...clientData,
-      timestampCreacion: new Date(),
-    });
+  if (!clientData || !clientData.dni) {
+    // No hacer nada si no hay DNI, para evitar errores.
+    return;
   }
+
+  // Prepara el objeto para guardar, asegurando el timestamp de modificación.
+  const clientToSave = {
+    ...clientData,
+    timestampUltimaModificacion: new Date(),
+  };
+
+  // Para mantener el timestamp de creación, primero verificamos si el cliente existe.
+  const existingClient = await db.clients.get(clientData.dni);
+  if (!existingClient) {
+    clientToSave.timestampCreacion = new Date();
+  }
+
+  // Dexie.put() se encarga de la lógica "update or insert" (upsert)
+  // usando el DNI como clave primaria.
+  return await db.clients.put(clientToSave);
 };
 
 /**

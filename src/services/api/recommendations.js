@@ -1,6 +1,5 @@
 import { db } from "@/services/database/dexieConfig";
-import Dexie from "dexie";
-import { v4 as uuidv4 } from "uuid"; // Necesitarás instalar uuid: npm install uuid
+import { v4 as uuidv4 } from "uuid";
 import { putClient } from "./clients";
 
 /**
@@ -13,17 +12,17 @@ export const createRecommendation = async (recommendationData, userId) => {
   try {
     const newRecommendation = {
       ...recommendationData, // Datos del formulario
-      id: uuidv4(), // Genera un ID único universal
+      id: uuidv4(), // ¡CLAVE! Generamos un ID único universal en la creación.
       dniAgricultor: recommendationData.datosAgricultor?.dni || "",
       userId: userId,
       emailTecnico: recommendationData.datosTecnico?.email || "",
       fecha: new Date(), // Sello de tiempo de creación
-      syncStatus: "pending_creation", // Marca para sincronización
+      syncStatus: "pending", // Estado inicial para sincronización
       timestampUltimaModificacion: new Date(),
     };
 
     // Guardar en la base de datos local
-    const localId = await db.recommendations.add(newRecommendation);
+    const id = await db.recommendations.add(newRecommendation);
 
     // Guardar/Actualizar el cliente en su propia tabla para futuras búsquedas
     if (recommendationData.datosAgricultor?.dni) {
@@ -35,8 +34,8 @@ export const createRecommendation = async (recommendationData, userId) => {
       await putClient(clientData);
     }
 
-    console.log("Recomendación guardada localmente con ID:", localId);
-    return localId;
+    console.log("Recomendación guardada localmente con ID:", id);
+    return id;
   } catch (error) {
     console.error("Error al guardar la recomendación localmente:", error);
     throw error;
@@ -49,7 +48,7 @@ export const createRecommendation = async (recommendationData, userId) => {
  * @param {string} userId - El ID del usuario.
  * @param {number} [page=1] - El número de página a obtener.
  * @param {number} [pageSize=15] - El número de elementos por página.
- * @param {object} [filters={}] - Objeto con filtros a aplicar.
+ * @param {object} [filters={}] - Objeto con filtros a aplicar (status, dateFrom, dateTo, client).
  * @returns {Promise<{data: Array<object>, total: number}>} Un objeto con las recomendaciones y el conteo total.
  */
 export const getAllRecommendations = async (
@@ -104,30 +103,34 @@ export const getAllRecommendations = async (
  * @returns {Promise<object|undefined>} La última recomendación o undefined si no hay ninguna.
  */
 export const getLastRecommendation = async (userId) => {
-  // Usamos el índice [userId+fecha] y el método .last() de Dexie para obtener
-  // el último registro de forma súper eficiente, sin cargar toda la tabla.
-  return await db.recommendations.where({ userId: userId }).last();
+  // Ya no podemos usar .last() directamente porque la clave primaria es un UUID no secuencial.
+  // Debemos ordenar explícitamente por fecha para encontrar la última recomendación real.
+  // El índice [userId+fecha] que definimos en dexieConfig hace que esta operación sea muy eficiente.
+  return await db.recommendations
+    .where({ userId: userId })
+    .sortBy("fecha")
+    .then((recs) => recs[recs.length - 1]);
 };
 
 /**
  * Obtiene una recomendación específica por su ID local.
- * @param {number} localId - El ID local del registro en Dexie.
+ * @param {string} id - El ID universal (UUID) del registro.
  * @returns {Promise<object|undefined>} La recomendación o undefined si no se encuentra.
  */
-export const getRecommendationById = async (localId) => {
+export const getRecommendationById = async (id) => {
   // Dexie's get() es la forma más eficiente de obtener un registro por su clave primaria.
-  return await db.recommendations.get(localId);
+  return await db.recommendations.get(id);
 };
 
 /**
  * Actualiza una recomendación existente en la base de datos local.
- * @param {number} localId - El ID local del registro en Dexie.
+ * @param {string} id - El ID universal (UUID) del registro.
  * @param {object} updates - Un objeto con los campos a actualizar.
  * @returns {Promise<number>} El número de registros actualizados (debería ser 1).
  */
-export const updateRecommendation = async (localId, updates) => {
+export const updateRecommendation = async (id, updates) => {
   try {
-    const recommendation = await db.recommendations.get(localId);
+    const recommendation = await db.recommendations.get(id);
     if (!recommendation) {
       throw new Error("Recomendación no encontrada");
     }
@@ -136,16 +139,24 @@ export const updateRecommendation = async (localId, updates) => {
     const dataToUpdate = {
       ...updates,
       timestampUltimaModificacion: new Date(),
-      // Si ya estaba sincronizado, lo marcamos para actualizar. Si no, sigue pendiente de creación.
+      // Si ya estaba sincronizado, lo marcamos para actualizar. Si no, sigue pendiente.
       syncStatus:
-        recommendation.syncStatus === "synced"
-          ? "pending_update"
-          : recommendation.syncStatus,
+        recommendation.syncStatus === "synced" ? "modified" : "pending",
     };
 
     // Al actualizar, también actualizamos el perfil del cliente con la firma más reciente si existe
-    if (updates.datosAgricultor?.dni) {
-      const clientData = { ...updates.datosAgricultor };
+    // --- CORRECCIÓN ---
+    // Nos aseguramos de que el DNI exista y tenga una longitud válida antes de intentar guardar el cliente.
+    // Un DNI vacío ("") causaría un error en Dexie.
+    if (
+      updates.datosAgricultor?.dni &&
+      (updates.datosAgricultor.dni.length === 8 ||
+        updates.datosAgricultor.dni.length === 11)
+    ) {
+      const clientData = {
+        ...recommendation.datosAgricultor,
+        ...updates.datosAgricultor,
+      };
       // Si hay una firma en la actualización, la guardamos en el perfil del cliente.
       if (updates.firmaAgricultor) {
         clientData.signature = updates.firmaAgricultor;
@@ -153,7 +164,7 @@ export const updateRecommendation = async (localId, updates) => {
       await putClient(clientData);
     }
 
-    return await db.recommendations.update(localId, dataToUpdate);
+    return await db.recommendations.update(id, dataToUpdate);
   } catch (error) {
     console.error("Error al actualizar la recomendación localmente:", error);
     throw error;
@@ -162,21 +173,18 @@ export const updateRecommendation = async (localId, updates) => {
 
 /**
  * Elimina una recomendación de la base de datos local.
- * @param {number} localId - El ID local del registro en Dexie.
+ * @param {string} id - El ID universal (UUID) del registro.
  * @returns {Promise<void>}
  */
-export const deleteRecommendation = async (localId) => {
-  const recommendation = await db.recommendations.get(localId);
+export const deleteRecommendation = async (id) => {
+  const recommendation = await db.recommendations.get(id);
   if (recommendation) {
-    // Si la recomendación nunca fue subida a la nube, la podemos borrar directamente.
-    if (recommendation.syncStatus === "pending_creation") {
-      return await db.recommendations.delete(localId);
-    } else {
-      // Si ya estaba en la nube, la marcamos para que el sincronizador la borre.
-      return await db.recommendations.update(localId, {
-        syncStatus: "pending_deletion",
-      });
-    }
+    // Implementamos Soft Delete (eliminación lógica).
+    // En lugar de borrar, marcamos el registro para que el sincronizador lo elimine del servidor
+    // y luego lo oculte de la UI local.
+    return await db.recommendations.update(id, {
+      syncStatus: "deleted",
+    });
   }
 };
 
