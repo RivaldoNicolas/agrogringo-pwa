@@ -85,6 +85,8 @@ export default defineConfig({
     port: 3000,
     host: true, // Permite acceso desde red local
     open: true, // Abre navegador automáticamente
+    //Exponiendo server ngrock temporalmente
+    allowedHosts: ["fezzed-oxalic-leigha.ngrok-free.dev", ".ngrok-free.dev"],
   },
 
   // Optimizaciones para producción

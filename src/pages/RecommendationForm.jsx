@@ -11,7 +11,8 @@ import { SignaturePad } from '@/components/SignaturePad';
 import { ProductAutocomplete } from '@/components/ProductAutocomplete';
 import { db } from '@/services/database/dexieConfig';
 import { compressImage } from '@/utils/imageCompressor';
-import { fileToBase64 } from '@/utils/fileUtils';
+import logo from '@/assets/logo_agrogringo.jpeg'; // 1. Importamos el logo
+import { uploadToCloudinary } from '@/services/cloudinaryUploader'; // Importamos la nueva función
 
 // Datos geográficos de Ucayali
 const ucayaliData = {
@@ -97,11 +98,11 @@ export function RecommendationForm() {
             // Solo procesa la imagen si es un archivo nuevo (objeto File)
             if (data.seguimiento.fotoAntes instanceof FileList && data.seguimiento.fotoAntes.length > 0) {
                 const originalFile = data.seguimiento.fotoAntes[0];
-                // Comprimimos la imagen antes de convertirla
+                // Comprimimos la imagen
                 const compressedBlob = await compressImage(originalFile);
-                // Convertimos el Blob comprimido a base64
-                const base64Image = await fileToBase64(compressedBlob);
-                data.seguimiento.fotoAntes = base64Image;
+                // La subimos a Cloudinary y obtenemos la URL
+                const imageUrl = await uploadToCloudinary(compressedBlob);
+                data.seguimiento.fotoAntes = imageUrl; // Guardamos la URL en lugar del base64
             }
 
             if (isEditMode) {
@@ -288,9 +289,10 @@ export function RecommendationForm() {
             <div className="max-w-4xl mx-auto p-2 sm:p-4">
                 {/* HEADER */}
                 <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-4 sm:p-6 rounded-t-xl shadow-lg">
-                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center">
+                    <div className="flex flex-col sm:flex-row justify-between items-center">
                         <div className="flex items-center mb-4 sm:mb-0">
-                            <div className="text-5xl mr-4">🌱</div>
+                            {/* 2. Reemplazamos el emoji por la imagen del logo */}
+                            <img src={logo} alt="Logo AgroGringo" className="h-14 w-14 mr-4 rounded-full object-cover" />
                             <div>
                                 <h1 className="text-2xl font-bold text-shadow">{isEditMode ? 'EDITAR RECOMENDACIÓN' : 'AGRO GRINGO - AGUAYTIA'}</h1>
                                 <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>

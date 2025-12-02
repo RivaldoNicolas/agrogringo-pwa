@@ -6,6 +6,7 @@ import { ChevronDownIcon, FunnelIcon } from '@heroicons/react/24/solid'; // Nece
 import { Link } from 'react-router-dom';
 import { exportElementAsPdf } from '@/services/exportPdf.js';
 import { RecommendationPdfLayout } from '../components/RecommendationPdfLayout';
+import logo from '@/assets/logo_agrogringo.jpeg'; // Importamos el logo
 import { exportToExcel } from '@/services/excelExporter'; // ¡Importamos el nuevo exportador!
 
 export function ConsultationPage() {
@@ -200,8 +201,7 @@ export function ConsultationPage() {
                 {/* HEADER DE LA PÁGINA */}
                 <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-6">
                     <div className="flex flex-col sm:flex-row justify-between items-center">
-                        <div className="flex items-center mb-4 sm:mb-0">
-                            <div className="text-4xl mr-4">🌱</div>
+                        <div className="flex items-center mb-4 sm:mb-0">                            <img src={logo} alt="Logo AgroGringo" className="h-12 w-12 mr-4 rounded-full object-cover" />
                             <div>
                                 <h1 className="text-2xl font-bold">Consulta de Recomendaciones</h1>
                                 <p className="text-sm opacity-90">Gestión y Seguimiento</p>
