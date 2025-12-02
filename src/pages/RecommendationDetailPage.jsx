@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { getRecommendationById } from '@/services/api/recommendations';
 import toast from 'react-hot-toast';
 import { exportElementAsPdf } from '@/services/exportPdf.js';
+import logo from '@/assets/logo_agrogringo.jpeg'; // Importamos el logo
 import { RecommendationPdfLayout } from '../components/RecommendationPdfLayout';
 
 export function RecommendationDetailPage() {
@@ -101,7 +102,7 @@ export function RecommendationDetailPage() {
                 <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-6">
                     <div className="flex flex-col sm:flex-row justify-between items-center">
                         <div className="flex items-center mb-4 sm:mb-0">
-                            <div className="text-5xl mr-4">🌱</div>
+                            <img src={logo} alt="Logo AgroGringo" className="h-14 w-14 mr-4 rounded-full object-cover" />
                             <div>
                                 <h1 className="text-2xl font-bold text-shadow">AGRO GRINGO - AGUAYTIA</h1>
                                 <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>

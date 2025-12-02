@@ -3,8 +3,8 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useForm, Controller } from 'react-hook-form';
 import { getRecommendationById, updateRecommendation } from '@/services/api/recommendations';
 import { compressImage } from '@/utils/imageCompressor';
-import { fileToBase64 } from '@/utils/fileUtils';
 import toast from 'react-hot-toast';
+import { uploadToCloudinary } from '@/services/cloudinaryUploader';
 
 const fasesTratamiento = ['Siembra', 'Vegetativo', 'Floración', 'Producción', 'Postcosecha', 'Cosecha', 'Otro'];
 
@@ -69,14 +69,9 @@ export function FollowUpPage() {
             if (data.seguimiento.fotoDespues && data.seguimiento.fotoDespues.length > 0) {
                 const originalFile = data.seguimiento.fotoDespues[0];
 
-                // Visualización en consola (temporal)
-                console.log(`📸 Tamaño Original: ${(originalFile.size / 1024).toFixed(2)} KB`);
-
                 const compressedBlob = await compressImage(originalFile);
-                console.log(`✅ Tamaño Comprimido: ${(compressedBlob.size / 1024).toFixed(2)} KB`);
-
-                const base64Image = await fileToBase64(compressedBlob);
-                updates.seguimiento.fotoDespues = base64Image;
+                const imageUrl = await uploadToCloudinary(compressedBlob);
+                updates.seguimiento.fotoDespues = imageUrl;
             }
 
             await updateRecommendation(id, updates);

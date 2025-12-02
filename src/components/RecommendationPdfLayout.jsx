@@ -1,4 +1,5 @@
 import React from 'react';
+import logo from '@/assets/logo_agrogringo.jpeg'; // 1. Importamos el logo
 
 /**
  * Este componente es una versión no interactiva y puramente visual
@@ -41,7 +42,8 @@ export function RecommendationPdfLayout({ recommendation }) {
             <div className="bg-gradient-to-r from-green-800 to-green-600 text-white p-6">
                 <div className="flex flex-row justify-between items-center">
                     <div className="flex items-center">
-                        <div className="text-5xl mr-4">🌱</div>
+                        {/* 2. Reemplazamos el emoji por el logo circular */}
+                        <img src={logo} alt="Logo AgroGringo" className="h-14 w-14 mr-4 rounded-full object-cover" />
                         <div>
                             <h1 className="text-2xl font-bold text-shadow">AGRO GRINGO - AGUAYTIA</h1>
                             <p className="font-semibold">HOJA DE RECOMENDACIÓN TÉCNICA</p>
@@ -52,12 +54,16 @@ export function RecommendationPdfLayout({ recommendation }) {
                             N° {noHoja}
                         </div>
                         <p className="mt-2 text-sm">Fecha: {new Date(fecha).toLocaleString()}</p>
-                        {/* Solución de centrado vertical para html2canvas */}
-                        <div
-                            className={`mt-2 inline-block px-3 text-sm font-bold rounded-full ${estadoStyles[estado] || 'bg-gray-100 text-gray-800'}`}
-                            style={{ height: '1.75rem', lineHeight: '1.75rem' }}
-                        >
-                            {estado} {faseTratamiento && `(${faseTratamiento})`}
+                        {/* Solución con Flexbox para un centrado vertical robusto en PDF */}
+                        <div className="mt-2">
+                            <span className={`inline-block px-4 py-2 text-sm font-bold rounded-full ${estadoStyles[estado]}`}>
+                                {estado}
+                            </span>
+                            {faseTratamiento && (
+                                <span className="ml-2 inline-block px-3 py-2 text-xs font-semibold bg-gray-200 text-gray-700 rounded-full">
+                                    {faseTratamiento}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -196,11 +202,9 @@ export function RecommendationPdfLayout({ recommendation }) {
                 </section>
 
                 {/* Frase de Responsabilidad */}
-                <section className="text-center mt-8 pt-4 border-t border-dashed">
-                    <p
-                        className="text-2xl italic text-green-700"
-                        style={{ fontFamily: "'Brush Script MT', cursive" }}
-                    >
+                <section className="text-center mt-8 pt-4 border-t border-dashed" style={{ breakInside: 'avoid' }}>
+                    {/* 4. Cambiamos el estilo de la fuente a uno más legible */}
+                    <p className="text-xl font-semibold italic text-green-800">
                         "Responsabilidad para producir Alimentos saludables"
                     </p>
                 </section>
